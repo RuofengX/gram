@@ -536,6 +536,7 @@ dependencies = [
  "grammers-client",
  "serde",
  "serde_bytes",
+ "serde_json",
  "sled",
  "tokio",
  "tracing",

@@ -4,17 +4,18 @@ use grammers_client::{
     client::messages::MessageIter,
     grammers_tl_types as tl,
     session::{self as session_tl, Session},
-    types::{Chat, Downloadable, LoginToken, Media},
+    types::{Chat, Downloadable, Media},
 };
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::types::{ApiConfig, FreezeSession, LoginCode, LoginPhone, TargetChat};
+use crate::types::{ApiConfig, FreezeSession, TargetChat};
 
 const FILE_MIGRATE_ERROR: i32 = 303;
 const DOWNLOAD_CHUNK_SIZE: usize = 16 * 1024 * 1024;
 
+#[derive(Debug)]
 pub struct Scraper {
     uuid: Uuid,
     client: Client,
@@ -41,17 +42,15 @@ impl Scraper {
 
     /// 请求登录
     ///
-    /// 输入手机号, 返回LoginToken,给手机号的Tg客户端发送验证码，之后调用login登录
-    pub async fn request_login(&self, login_phone: &LoginPhone) -> Result<LoginToken> {
-        let login_token = self.client.request_login_code(&login_phone.0).await?;
-        Ok(login_token)
-    }
-
-    /// 登录
-    ///
-    /// 输入login_token和Tg客户端验证码登录
-    pub async fn login(&self, login_token: LoginToken, code: LoginCode) -> Result<tl::types::User> {
-        let user = self.client.sign_in(&login_token, &code.0).await?;
+    /// 输入手机号, 给手机号的Tg客户端发送验证码，之后从reader中读code并登录
+    pub async fn login(
+        &self,
+        login_phone: &str,
+        code_reader: tokio::sync::oneshot::Receiver<String>,
+    ) -> Result<tl::types::User> {
+        let login_token = self.client.request_login_code(login_phone).await?;
+        let code = code_reader.await?;
+        let user = self.client.sign_in(&login_token, &code).await?;
         match user.raw {
             tl::enums::User::Empty(_) => bail!("sign in with empty user"),
             tl::enums::User::User(u) => Ok(u),
@@ -98,6 +97,13 @@ impl Scraper {
 }
 
 impl Scraper {
+    pub async fn check_self(&self) -> Result<tl::types::User> {
+        let me = self.client.get_me().await?;
+        match me.raw {
+            tl::enums::User::User(u) => Ok(u),
+            tl::enums::User::Empty(_) => bail!("check failed, self is empty!"),
+        }
+    }
     pub async fn join_chat(&self, target_chat: TargetChat) -> Result<Option<Chat>> {
         let ret = self.client.join_chat(target_chat).await?;
         Ok(ret)

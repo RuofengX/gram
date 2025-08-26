@@ -9,16 +9,17 @@ pub struct ApiConfig {
     pub api_id: i32,
     pub api_hash: String,
 }
+impl Into<ApiConfig> for (i32, &'static str){
+    fn into(self) -> ApiConfig {
+        ApiConfig { api_id: self.0, api_hash: self.1.to_string() }
+    }
+}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoginPhone(pub String);
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LoginCode(pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreezeSession {
     pub uuid: Uuid,
+    #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
 }
 
