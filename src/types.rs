@@ -1,7 +1,12 @@
-use std::fmt;
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 
-use grammers_client::types::PackedChat;
-use serde::{Deserialize, Serialize, de::Visitor};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use tracing::{info, trace};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,72 +14,56 @@ pub struct ApiConfig {
     pub api_id: i32,
     pub api_hash: String,
 }
-impl Into<ApiConfig> for (i32, &'static str){
+impl Into<ApiConfig> for (i32, &'static str) {
     fn into(self) -> ApiConfig {
-        ApiConfig { api_id: self.0, api_hash: self.1.to_string() }
+        ApiConfig {
+            api_id: self.0,
+            api_hash: self.1.to_string(),
+        }
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreezeSession {
     pub uuid: Uuid,
     #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
+    pub api_config: ApiConfig,
 }
 
-#[derive(Debug)]
-
-pub struct TargetChat(pub PackedChat);
-
-impl From<TargetChat> for PackedChat {
-    fn from(value: TargetChat) -> Self {
-        value.0
+impl FreezeSession {
+    pub fn dumps(&self) -> Result<Vec<u8>> {
+        // let ret = postcard::to_allocvec(&self)?;
+        let ret = serde_json::to_vec(&self)?;
+        Ok(ret)
     }
-}
-impl Serialize for TargetChat {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_bytes(&self.0.to_bytes())
+
+    pub fn loads(buf: &[u8]) -> Result<Self> {
+        // let ret = postcard::from_bytes(buf)?;
+        let ret = serde_json::from_slice(buf)?;
+        Ok(ret)
     }
-}
-impl<'de> Deserialize<'de> for TargetChat {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct PackedChatVisitor;
 
-        impl<'de> Visitor<'de> for PackedChatVisitor {
-            type Value = TargetChat;
+    pub fn dump(&self, path: impl AsRef<Path>) -> Result<()> {
+        trace!("开始保存: {}", path.as_ref().display());
+        let path = path.as_ref().to_path_buf();
 
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("17 bytes representing a PackedChat")
-            }
+        let mut f = File::options()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&path)?;
 
-            // 如果格式是 bytes
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                let arr: [u8; 17] = v
-                    .try_into()
-                    .map_err(|_| E::invalid_length(v.len(), &self))?;
-                let inner = PackedChat::from_bytes(&arr).map_err(E::custom)?;
-                Ok(TargetChat(inner))
-            }
+        f.write_all(&self.dumps()?)?;
+        f.flush()?;
+        info!("保存至文件: {}", path.display());
+        Ok(())
+    }
 
-            // 某些序列化格式（如 bincode）会走 visit_byte_buf
-            fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                self.visit_bytes(&v)
-            }
-        }
-
-        deserializer.deserialize_bytes(PackedChatVisitor)
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        let mut f = File::options().read(true).open(path)?;
+        let mut buf = Vec::new();
+        f.read_to_end(&mut buf)?;
+        Ok(Self::loads(&buf)?)
     }
 }

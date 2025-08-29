@@ -3,7 +3,7 @@ use gram::{scraper::Scraper, stdin_read_line};
 include!("../../.config.rs");
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let api_config = TEST_CONFIG.into();
     let client = Scraper::new(api_config).await.unwrap();
 
@@ -19,8 +19,9 @@ async fn main() {
     println!("{}", u);
 
     let freeze = client.freeze();
-    let s = serde_json::to_string_pretty(&freeze).unwrap();
-    println!("{}", s);
+    freeze.dump("./test.session")?;
+
+    Ok(())
 
     // todo!()
 }

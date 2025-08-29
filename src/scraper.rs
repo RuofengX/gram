@@ -4,13 +4,13 @@ use grammers_client::{
     client::messages::MessageIter,
     grammers_tl_types as tl,
     session::{self as session_tl, Session},
-    types::{Chat, Downloadable, Media},
+    types::{Chat, Downloadable, Media, PackedChat},
 };
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::types::{ApiConfig, FreezeSession, TargetChat};
+use crate::types::{ApiConfig, FreezeSession};
 
 const FILE_MIGRATE_ERROR: i32 = 303;
 const DOWNLOAD_CHUNK_SIZE: usize = 16 * 1024 * 1024;
@@ -18,6 +18,7 @@ const DOWNLOAD_CHUNK_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug)]
 pub struct Scraper {
     uuid: Uuid,
+    api_config: ApiConfig,
     client: Client,
 }
 
@@ -25,10 +26,10 @@ impl Scraper {
     /// 新建
     ///
     /// 新建一个会话, 需要登录才可使用
-    pub async fn new(config: ApiConfig) -> Result<Self> {
+    pub async fn new(api_config: ApiConfig) -> Result<Self> {
         let uuid = Uuid::new_v4();
         let session = session_tl::Session::new();
-        let ApiConfig { api_id, api_hash } = config;
+        let ApiConfig { api_id, api_hash } = api_config.clone();
         let config = Config {
             session,
             api_id,
@@ -36,7 +37,11 @@ impl Scraper {
             params: Default::default(),
         };
         let client = Client::connect(config).await?;
-        let ret = Self { uuid, client };
+        let ret = Self {
+            uuid,
+            client,
+            api_config,
+        };
         Ok(ret)
     }
 
@@ -68,9 +73,13 @@ impl Scraper {
     /// 从冻结恢复
     ///
     /// 不需要重新登录
-    pub async fn from_freeze(freeze: FreezeSession, config: ApiConfig) -> Result<Self> {
-        let ApiConfig { api_id, api_hash } = config;
-        let FreezeSession { uuid, value } = freeze;
+    pub async fn from_frozen(frozen: FreezeSession) -> Result<Self> {
+        let FreezeSession {
+            uuid,
+            value,
+            api_config,
+        } = frozen;
+        let ApiConfig { api_id, api_hash } = api_config.clone();
         let session = Session::load(&value)?;
         let config = Config {
             session,
@@ -80,7 +89,11 @@ impl Scraper {
         };
 
         let client = Client::connect(config).await?;
-        let ret = Self { uuid, client };
+        let ret = Self {
+            uuid,
+            client,
+            api_config,
+        };
         Ok(ret)
     }
 
@@ -92,6 +105,7 @@ impl Scraper {
         FreezeSession {
             uuid: self.uuid,
             value: self.client.session().save(),
+            api_config: self.api_config,
         }
     }
 }
@@ -104,7 +118,7 @@ impl Scraper {
             tl::enums::User::Empty(_) => bail!("check failed, self is empty!"),
         }
     }
-    pub async fn join_chat(&self, target_chat: TargetChat) -> Result<Option<Chat>> {
+    pub async fn join_chat(&self, target_chat: PackedChat) -> Result<Option<Chat>> {
         let ret = self.client.join_chat(target_chat).await?;
         Ok(ret)
     }
@@ -114,13 +128,13 @@ impl Scraper {
         Ok(ret)
     }
 
-    pub async fn fetch_user_info(&self, user: TargetChat) -> Result<tl::types::users::UserFull> {
-        if !user.0.is_user() {
+    pub async fn fetch_user_info(&self, user: PackedChat) -> Result<tl::types::users::UserFull> {
+        if !user.is_user() {
             bail!("target chat not user");
         }
 
-        let user_id = user.0.id;
-        let access_hash = user.0.access_hash.ok_or(anyhow!("no access hash"))?;
+        let user_id = user.id;
+        let access_hash = user.access_hash.ok_or(anyhow!("no access hash"))?;
         let input_user = tl::enums::InputUser::User(tl::types::InputUser {
             user_id,
             access_hash,
@@ -135,14 +149,14 @@ impl Scraper {
 
     pub async fn fetch_channel_info(
         &self,
-        user: TargetChat,
+        channel: PackedChat,
     ) -> Result<tl::types::messages::ChatFull> {
-        if !user.0.is_channel() {
+        if !channel.is_channel() {
             bail!("target chat not channel");
         }
 
-        let channel_id = user.0.id;
-        let access_hash = user.0.access_hash.ok_or(anyhow!("no access hash"))?;
+        let channel_id = channel.id;
+        let access_hash = channel.access_hash.ok_or(anyhow!("no access hash"))?;
         let input_user = tl::enums::InputChannel::Channel(tl::types::InputChannel {
             channel_id,
             access_hash,
@@ -157,12 +171,12 @@ impl Scraper {
         Ok(ret)
     }
 
-    pub fn start_fetch_message(&self, chat: TargetChat) -> Result<MessageIter> {
+    pub fn start_fetch_message(&self, chat: PackedChat) -> Result<MessageIter> {
         let ret = self.client.iter_messages(chat);
         Ok(ret)
     }
 
-    pub async fn quit_chat(&self, chat: TargetChat) -> Result<()> {
+    pub async fn quit_chat(&self, chat: PackedChat) -> Result<()> {
         self.client.delete_dialog(chat).await?;
         Ok(())
     }

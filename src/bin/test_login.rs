@@ -1,14 +1,19 @@
-use gram::scraper::Scraper;
+use gram::{scraper::Scraper, types::FreezeSession};
 
 include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let freeze = serde_json::from_str(include_str!("../../session.json"))?;
+    let freeze = FreezeSession::load("./test.session")?;
 
-    let client = Scraper::from_freeze(freeze, TEST_CONFIG.into()).await?;
+    let client = Scraper::from_frozen(freeze).await?;
 
-    println!("{:?}", client.check_self().await?);
+    let this = client.check_self().await?;
+
+    println!("access_hash: {:?}", this.access_hash);
+
+    let freeze = client.freeze();
+    freeze.dump("./test.session")?;
 
     Ok(())
 }
