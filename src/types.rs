@@ -23,15 +23,18 @@ impl Into<ApiConfig> for (i32, &'static str) {
     }
 }
 
+/// 冻结的会话
+/// 
+/// 会话可以离线保存, 类似应用网络静默, 冻结后系统不再分配计算资源  
+/// 内含会话凭证和会话ID(UUID)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FreezeSession {
+pub struct FrozenSession {
     pub uuid: Uuid,
     #[serde(with = "serde_bytes")]
-    pub value: Vec<u8>,
-    pub api_config: ApiConfig,
+    pub data: Vec<u8>,
 }
 
-impl FreezeSession {
+impl FrozenSession {
     pub fn dumps(&self) -> Result<Vec<u8>> {
         // let ret = postcard::to_allocvec(&self)?;
         let ret = serde_json::to_vec(&self)?;

@@ -4,13 +4,14 @@ use grammers_client::{
     client::messages::MessageIter,
     grammers_tl_types as tl,
     session::{self as session_tl, Session},
-    types::{Chat, Downloadable, Media, PackedChat},
+    types::{Downloadable, Media, PackedChat},
 };
-use tokio::io::{AsyncWrite, AsyncWriteExt};
-use tracing::{info, warn};
+use serde::Deserialize;
+use tokio::sync::mpsc;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use crate::types::{ApiConfig, FreezeSession};
+use crate::types::{ApiConfig, FrozenSession};
 
 const FILE_MIGRATE_ERROR: i32 = 303;
 const DOWNLOAD_CHUNK_SIZE: usize = 16 * 1024 * 1024;
@@ -18,7 +19,6 @@ const DOWNLOAD_CHUNK_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug)]
 pub struct Scraper {
     uuid: Uuid,
-    api_config: ApiConfig,
     client: Client,
 }
 
@@ -26,7 +26,7 @@ impl Scraper {
     /// 新建
     ///
     /// 新建一个会话, 需要登录才可使用
-    pub async fn new(api_config: ApiConfig) -> Result<Self> {
+    pub async fn new(api_config: &ApiConfig) -> Result<Self> {
         let uuid = Uuid::new_v4();
         let session = session_tl::Session::new();
         let ApiConfig { api_id, api_hash } = api_config.clone();
@@ -37,11 +37,7 @@ impl Scraper {
             params: Default::default(),
         };
         let client = Client::connect(config).await?;
-        let ret = Self {
-            uuid,
-            client,
-            api_config,
-        };
+        let ret = Self { uuid, client };
         Ok(ret)
     }
 
@@ -50,11 +46,11 @@ impl Scraper {
     /// 输入手机号, 给手机号的Tg客户端发送验证码，之后从reader中读code并登录
     pub async fn login(
         &self,
-        login_phone: &str,
-        code_reader: tokio::sync::oneshot::Receiver<String>,
+        phone: &str,
+        code: tokio::sync::oneshot::Receiver<String>,
     ) -> Result<tl::types::User> {
-        let login_token = self.client.request_login_code(login_phone).await?;
-        let code = code_reader.await?;
+        let login_token = self.client.request_login_code(phone).await?;
+        let code = code.await?;
         let user = self.client.sign_in(&login_token, &code).await?;
         match user.raw {
             tl::enums::User::Empty(_) => bail!("sign in with empty user"),
@@ -73,14 +69,10 @@ impl Scraper {
     /// 从冻结恢复
     ///
     /// 不需要重新登录
-    pub async fn from_frozen(frozen: FreezeSession) -> Result<Self> {
-        let FreezeSession {
-            uuid,
-            value,
-            api_config,
-        } = frozen;
+    pub async fn from_frozen(frozen: FrozenSession, api_config: &ApiConfig) -> Result<Self> {
+        let FrozenSession { uuid, data } = frozen;
         let ApiConfig { api_id, api_hash } = api_config.clone();
-        let session = Session::load(&value)?;
+        let session = Session::load(&data)?;
         let config = Config {
             session,
             api_id,
@@ -89,11 +81,7 @@ impl Scraper {
         };
 
         let client = Client::connect(config).await?;
-        let ret = Self {
-            uuid,
-            client,
-            api_config,
-        };
+        let ret = Self { uuid, client };
         Ok(ret)
     }
 
@@ -101,11 +89,10 @@ impl Scraper {
     ///
     /// 将session不退出保存, 下次不需要登录
     /// 调用者要保证出口IP前后一致
-    pub fn freeze(self) -> FreezeSession {
-        FreezeSession {
+    pub fn freeze(self) -> FrozenSession {
+        FrozenSession {
             uuid: self.uuid,
-            value: self.client.session().save(),
-            api_config: self.api_config,
+            data: self.client.session().save(),
         }
     }
 }
@@ -118,14 +105,26 @@ impl Scraper {
             tl::enums::User::Empty(_) => bail!("check failed, self is empty!"),
         }
     }
-    pub async fn join_chat(&self, target_chat: PackedChat) -> Result<Option<Chat>> {
-        let ret = self.client.join_chat(target_chat).await?;
-        Ok(ret)
+    pub async fn join_chat(&self, chat: PackedChat) -> Result<()> {
+        let ret = self.client.join_chat(chat).await?;
+        match ret {
+            Some(c) => info!("joined chat: [{}]({})", c.name().unwrap_or("-"), c.id()),
+            None => warn!("client join chat return None value"),
+        }
+        Ok(())
     }
 
-    pub async fn join_chat_link(&self, link: &str) -> Result<Option<Chat>> {
+    pub async fn join_chat_link(&self, link: &str) -> Result<()> {
         let ret = self.client.accept_invite_link(link).await?;
-        Ok(ret)
+        match ret {
+            Some(c) => info!(
+                "joined chat link: [{}]({})",
+                c.name().unwrap_or("-"),
+                c.id()
+            ),
+            None => warn!("client join chat link return None value"),
+        }
+        Ok(())
     }
 
     pub async fn fetch_user_info(&self, user: PackedChat) -> Result<tl::types::users::UserFull> {
@@ -171,94 +170,130 @@ impl Scraper {
         Ok(ret)
     }
 
-    pub fn start_fetch_message(&self, chat: PackedChat) -> Result<MessageIter> {
-        let ret = self.client.iter_messages(chat);
-        Ok(ret)
-    }
-
     pub async fn quit_chat(&self, chat: PackedChat) -> Result<()> {
         self.client.delete_dialog(chat).await?;
         Ok(())
     }
+}
 
-    /// 下载聊天中的媒体对象
+impl Scraper {
+    /// 后台下载聊天中的媒体对象
     ///
-    /// media: 媒体对象, 可由Message得到
-    /// writer: 下载数据存储写入位置
-    pub async fn download_media(
+    /// media: 媒体对象, 可由Message的media字段得到, 仅当前session有效
+    /// tx: 下载数据分块写入位置
+    pub async fn start_download(
         &self,
-        media: Media,
-        mut writer: impl AsyncWrite + Send + Unpin + 'static,
-    ) -> Result<()> {
-        if let Some(location) = media.to_raw_input_location() {
-            let size = media.size().ok_or(anyhow!("media has no size"))? as i64;
-            let mut offset = 0i64;
+        media: tl::enums::MessageMedia,
+        tx: mpsc::Sender<std::result::Result<bytes::Bytes, String>>,
+    ) -> () {
+        let client = self.client.clone();
+        // TODO: 使用异步循环来编写，充分利用?语法糖
+        tokio::spawn(async move {
+            let media = Media::from_raw(media);
+            if media.is_none() {
+                tx.send(Err("media type not supported".to_owned())).await;
+                return;
+            }
+            let media = media.unwrap();
 
-            let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1024);
+            if let Some(location) = media.to_raw_input_location() {
+                let size = media.size();
+                if size.is_none() {
+                    tx.send(Err("media has no size".to_owned())).await;
+                    return;
+                }
+                let size = size.unwrap() as i64;
 
-            tokio::try_join!(
-                async {
-                    while let Some(buf) = rx.recv().await {
-                        writer.write_all(&buf).await?;
-                        writer.flush().await?;
-                    }
-                    anyhow::Ok(())
-                },
-                async {
-                    while offset < size {
-                        let location = location.clone();
+                let mut offset = 0i64;
 
-                        let request = tl::functions::upload::GetFile {
-                            precise: true,
-                            cdn_supported: false,
-                            location,
-                            offset,
-                            limit: DOWNLOAD_CHUNK_SIZE as i32, // 1 MB
+                while offset < size {
+                    let location = location.clone();
+
+                    let request = tl::functions::upload::GetFile {
+                        precise: true,
+                        cdn_supported: false,
+                        location,
+                        offset,
+                        limit: DOWNLOAD_CHUNK_SIZE as i32, // 1 MB
+                    };
+
+                    offset += DOWNLOAD_CHUNK_SIZE as i64;
+
+                    let mut times = 0;
+                    let mut dc = None;
+
+                    while times <= 3 {
+                        times += 1;
+                        let res = match dc {
+                            None => client.invoke(&request).await,
+                            Some(dc) => client.invoke_in_dc(&request, dc as i32).await,
                         };
 
-                        offset += DOWNLOAD_CHUNK_SIZE as i64;
-                        let mut times = 0;
-
-                        let mut dc = None;
-
-                        while times <= 3 {
-                            times += 1;
-                            let res = match dc {
-                                None => self.client.invoke(&request).await,
-                                Some(dc) => self.client.invoke_in_dc(&request, dc as i32).await,
-                            };
-
-                            match res {
-                                Ok(tl::enums::upload::File::File(file)) => {
-                                    tx.send(file.bytes).await?;
-                                }
-                                Ok(tl::enums::upload::File::CdnRedirect(_)) => {
-                                    bail!(
-                                        "API returned File::CdnRedirect even though cdn_supported = false"
-                                    );
-                                }
-                                Err(InvocationError::Rpc(e)) => {
-                                    if e.code == FILE_MIGRATE_ERROR {
-                                        dc = Some(e.value.ok_or(anyhow!(
-                                            "api returned dc redirect, but not provide dc"
-                                        ))?);
-                                        times -= 1;
-                                        info!("file download redirect to dc {}", dc.unwrap());
-                                        continue;
+                        let payload = match res {
+                            Ok(tl::enums::upload::File::File(file)) => Ok(file.bytes.into()),
+                            Ok(tl::enums::upload::File::CdnRedirect(_)) => Err(
+                                "API returned File::CdnRedirect even though cdn_supported = false"
+                                    .to_owned(),
+                            ),
+                            Err(InvocationError::Rpc(e)) => {
+                                if e.code == FILE_MIGRATE_ERROR {
+                                    // dc redirect
+                                    match e.value {
+                                        Some(value) => {
+                                            dc = Some(value);
+                                            times -= 1;
+                                            info!("file download redirect to dc {}", value);
+                                            continue;
+                                        }
+                                        None => {
+                                            Err("api returned dc redirect, but not dc provided"
+                                                .to_owned())
+                                        }
                                     }
-                                    bail!("download error: {e}");
+                                } else {
+                                    // invoce error
+                                    Err("download error: {e}".to_owned())
                                 }
-                                Err(e) => bail!("download error: {e}"),
                             }
-                        }
-                    } // end of `while offset < size`
-                    Ok(())
-                } // end of second arm of tokio::join!
-            )?; // end of `tokio::join!`
-            Ok(())
-        } else {
-            warn!("media {media:?} has no location");
-            bail!("media cannot download")
-        }
+                            Err(e) => Err("download error: {e}".to_owned()),
+                        };
+
+                        match payload {
+                            Ok(payload) => {
+                                tx.send(Ok(payload)).await;
+                            }
+                            Err(e) => {
+                                error!("download error: {}", e);
+                                tx.send(Err(e)).await;
+                            }
+                        };
+                    }
+                }
+            } else {
+                warn!("media {media:?} has no location, download fail");
+            }
+        });
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct HistoryConfig {
+    pub chat: PackedChat,
+    pub limit: usize,
+    /// 参阅官方文档 tl::functions::messages::GetHistory
+    pub offset_date: i32,
+    /// 参阅官方文档 tl::functions::messages::GetHistory
+    pub offset_id: i32,
+}
+impl Scraper {
+    pub fn iter_history(&self, config: HistoryConfig) -> Result<MessageIter> {
+        let ret = self
+            .client
+            .iter_messages(config.chat)
+            .limit(config.limit)
+            .max_date(config.offset_date)
+            .offset_id(config.offset_id);
+
+        Ok(ret)
     }
 }

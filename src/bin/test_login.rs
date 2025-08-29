@@ -1,10 +1,10 @@
-use gram::{scraper::Scraper, types::FreezeSession};
+use gram::{scraper::Scraper, types::FrozenSession};
 
 include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let freeze = FreezeSession::load("./test.session")?;
+    let freeze = FrozenSession::load("./test.session")?;
 
     let client = Scraper::from_frozen(freeze).await?;
 
