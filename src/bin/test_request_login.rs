@@ -4,7 +4,7 @@ include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let api_config = TEST_CONFIG.into();
+    let api_config = &TEST_CONFIG.into();
     let client = Scraper::new(api_config).await.unwrap();
 
     let phone = stdin_read_line("请输入手机号");

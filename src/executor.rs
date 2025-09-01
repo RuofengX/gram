@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use bytes::Bytes;
+use axum::body::Body;
 use dashmap::{DashMap, mapref::one::Ref};
 use grammers_client::{grammers_tl_types as tl, types::PackedChat};
 use tokio::sync::{mpsc, oneshot::Receiver};
@@ -7,7 +7,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    scraper::{HistoryConfig, Scraper},
+    scraper::{DownloadConfig, HistoryConfig, Scraper},
     types::{ApiConfig, FrozenSession},
 };
 
@@ -141,15 +141,13 @@ impl Executor {
         Ok(ret)
     }
 
-    pub async fn download_media(
+    pub async fn download_media_http(
         &self,
         session_id: Uuid,
-        media: tl::enums::MessageMedia,
-    ) -> Result<mpsc::Receiver<std::result::Result<Bytes, String>>> {
-        let (tx, rx) = mpsc::channel(1024);
+        config: DownloadConfig,
+    ) -> Result<Body> {
         let s = self.get(&session_id)?;
-        s.value().start_download(media, tx);
-
-        Ok(rx)
+        let session = s.value().download_media(config)?;
+        Ok(Body::new(session))
     }
 }

@@ -1,4 +1,7 @@
+use std::{pin::Pin, sync::Arc, task::Poll};
+
 use anyhow::{Result, anyhow, bail};
+use bytes::Bytes;
 use grammers_client::{
     Client, Config, InvocationError,
     client::messages::MessageIter,
@@ -6,15 +9,16 @@ use grammers_client::{
     session::{self as session_tl, Session},
     types::{Downloadable, Media, PackedChat},
 };
+use http_body::Frame;
 use serde::Deserialize;
-use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tokio::sync::Mutex;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::types::{ApiConfig, FrozenSession};
 
 const FILE_MIGRATE_ERROR: i32 = 303;
-const DOWNLOAD_CHUNK_SIZE: usize = 16 * 1024 * 1024;
+const DOWNLOAD_CHUNK_SIZE: i32 = 0x1000000; // default 1MiB
 
 #[derive(Debug)]
 pub struct Scraper {
@@ -176,106 +180,6 @@ impl Scraper {
     }
 }
 
-impl Scraper {
-    /// 后台下载聊天中的媒体对象
-    ///
-    /// media: 媒体对象, 可由Message的media字段得到, 仅当前session有效
-    /// tx: 下载数据分块写入位置
-    pub async fn start_download(
-        &self,
-        media: tl::enums::MessageMedia,
-        tx: mpsc::Sender<std::result::Result<bytes::Bytes, String>>,
-    ) -> () {
-        let client = self.client.clone();
-        // TODO: 使用异步循环来编写，充分利用?语法糖
-        tokio::spawn(async move {
-            let media = Media::from_raw(media);
-            if media.is_none() {
-                tx.send(Err("media type not supported".to_owned())).await;
-                return;
-            }
-            let media = media.unwrap();
-
-            if let Some(location) = media.to_raw_input_location() {
-                let size = media.size();
-                if size.is_none() {
-                    tx.send(Err("media has no size".to_owned())).await;
-                    return;
-                }
-                let size = size.unwrap() as i64;
-
-                let mut offset = 0i64;
-
-                while offset < size {
-                    let location = location.clone();
-
-                    let request = tl::functions::upload::GetFile {
-                        precise: true,
-                        cdn_supported: false,
-                        location,
-                        offset,
-                        limit: DOWNLOAD_CHUNK_SIZE as i32, // 1 MB
-                    };
-
-                    offset += DOWNLOAD_CHUNK_SIZE as i64;
-
-                    let mut times = 0;
-                    let mut dc = None;
-
-                    while times <= 3 {
-                        times += 1;
-                        let res = match dc {
-                            None => client.invoke(&request).await,
-                            Some(dc) => client.invoke_in_dc(&request, dc as i32).await,
-                        };
-
-                        let payload = match res {
-                            Ok(tl::enums::upload::File::File(file)) => Ok(file.bytes.into()),
-                            Ok(tl::enums::upload::File::CdnRedirect(_)) => Err(
-                                "API returned File::CdnRedirect even though cdn_supported = false"
-                                    .to_owned(),
-                            ),
-                            Err(InvocationError::Rpc(e)) => {
-                                if e.code == FILE_MIGRATE_ERROR {
-                                    // dc redirect
-                                    match e.value {
-                                        Some(value) => {
-                                            dc = Some(value);
-                                            times -= 1;
-                                            info!("file download redirect to dc {}", value);
-                                            continue;
-                                        }
-                                        None => {
-                                            Err("api returned dc redirect, but not dc provided"
-                                                .to_owned())
-                                        }
-                                    }
-                                } else {
-                                    // invoce error
-                                    Err("download error: {e}".to_owned())
-                                }
-                            }
-                            Err(e) => Err("download error: {e}".to_owned()),
-                        };
-
-                        match payload {
-                            Ok(payload) => {
-                                tx.send(Ok(payload)).await;
-                            }
-                            Err(e) => {
-                                error!("download error: {}", e);
-                                tx.send(Err(e)).await;
-                            }
-                        };
-                    }
-                }
-            } else {
-                warn!("media {media:?} has no location, download fail");
-            }
-        });
-    }
-}
-
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct HistoryConfig {
     pub chat: PackedChat,
@@ -295,5 +199,164 @@ impl Scraper {
             .offset_id(config.offset_id);
 
         Ok(ret)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DownloadConfig {
+    /// media: 媒体对象, 可由Message的media字段得到, 仅当前session有效
+    media: tl::enums::MessageMedia,
+    offset: Option<i64>,
+    chunk_size: Option<i32>,
+}
+impl DownloadConfig {
+    pub fn new(
+        media: tl::enums::MessageMedia,
+        offset: Option<i64>,
+        chunk_size: Option<i32>,
+    ) -> Self {
+        Self {
+            media,
+            offset,
+            chunk_size,
+        }
+    }
+    pub fn offset(&mut self, value: i64) -> &mut Self {
+        self.offset = Some(value);
+        self
+    }
+    pub fn chunk_size(&mut self, value: i32) -> &mut Self {
+        self.chunk_size = Some(value);
+        self
+    }
+}
+
+pub struct DownloadSession {
+    client: Client,
+    location: tl::enums::InputFileLocation,
+    size: usize,
+    chunk_size: i32,
+    offset: Arc<Mutex<i64>>,
+    dc: Arc<Mutex<Option<u32>>>,
+    future: Option<Pin<Box<dyn Future<Output = Result<Bytes>> + Send + Sync + 'static>>>,
+}
+impl DownloadSession {
+    pub fn try_new(config: DownloadConfig, client: &Client) -> Result<Self> {
+        let client = client.clone();
+        let DownloadConfig {
+            media,
+            offset,
+            chunk_size: limit,
+        } = config;
+        let media_ex = Media::from_raw(media).ok_or(anyhow!("unsupport media"))?;
+        let size = media_ex.size().ok_or(anyhow!("media has no size"))?;
+        let offset = Arc::new(Mutex::new(offset.unwrap_or(0)));
+        let chunk_size = limit.unwrap_or(DOWNLOAD_CHUNK_SIZE);
+        let location = media_ex
+            .to_raw_input_location()
+            .ok_or(anyhow!("cannot fetch media location"))?;
+        Ok(Self {
+            client,
+            location,
+            size,
+            offset,
+            chunk_size,
+            dc: Arc::new(Mutex::new(None)),
+            future: None,
+        })
+    }
+}
+
+impl DownloadSession {
+    fn chunk_download(&self) -> impl Future<Output = Result<Bytes>> + Send + Sync + 'static {
+        let client = self.client.clone();
+        let location = self.location.clone();
+        let limit = self.chunk_size;
+        let offset = self.offset.clone();
+        let dc = self.dc.clone();
+
+        return async move {
+            let offset = offset.lock().await.clone();
+            let request = tl::functions::upload::GetFile {
+                precise: true,
+                cdn_supported: false,
+                location,
+                offset,
+                limit,
+            };
+            let mut retry = 0;
+            while retry < 3 {
+                let res = match *dc.lock().await {
+                    None => client.invoke(&request).await,
+                    Some(dc) => client.invoke_in_dc(&request, dc as i32).await,
+                };
+                match res {
+                    Ok(tl::enums::upload::File::File(f)) => return Ok(f.bytes.into()),
+
+                    Ok(tl::enums::upload::File::CdnRedirect(_)) => {
+                        bail!("server return cdn redict to a non-cdn request");
+                    }
+                    Err(e) => {
+                        if let InvocationError::Rpc(e) = &e {
+                            if e.code == FILE_MIGRATE_ERROR {
+                                // redirect dc
+                                *dc.lock().await = e.value;
+                                continue;
+                            }
+                        }
+                        warn!("retry download invoke error: {}", e);
+                        retry += 1;
+                    }
+                }
+            }
+            bail!("retry download too much times");
+        };
+    }
+}
+
+// TODO: better implement futures_core::TryStream
+impl http_body::Body for DownloadSession {
+    type Data = Bytes;
+
+    type Error = anyhow::Error;
+
+    fn is_end_stream(&self) -> bool {
+        if self.future.is_some() {
+            // has download running
+            false
+        } else {
+            // download finished || retry 3 times
+            *self.offset.blocking_lock() >= self.size as i64
+        }
+    }
+
+    fn poll_frame(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Result<Frame<<DownloadSession as http_body::Body>::Data>>>> {
+        let this = self.get_mut();
+
+        // redirect to running download if exists:
+        if let Some(future) = &mut this.future {
+            return future
+                .as_mut()
+                .poll(cx)
+                .map(|r| Some(r.map(|d| Frame::data(d))));
+        }
+
+        // all download is end
+        if this.is_end_stream() {
+            return Poll::Ready(None);
+        }
+
+        // continue download next chunk
+        this.future = Some(Box::pin(this.chunk_download()));
+        return Poll::Pending;
+    }
+}
+
+impl Scraper {
+    pub fn download_media(&self, config: DownloadConfig) -> Result<DownloadSession> {
+        DownloadSession::try_new(config, &self.client)
     }
 }

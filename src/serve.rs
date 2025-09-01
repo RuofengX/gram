@@ -1,4 +1,4 @@
-use std::{sync::Arc, task::Poll};
+use std::sync::Arc;
 
 use anyhow::bail;
 use axum::{
@@ -9,13 +9,16 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{any, get, post},
 };
-use bytes::Bytes;
 use grammers_client::{grammers_tl_types as tl, types::PackedChat};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::{executor::Executor, scraper::HistoryConfig, types::FrozenSession};
+use crate::{
+    executor::Executor,
+    scraper::{DownloadConfig, HistoryConfig},
+    types::FrozenSession,
+};
 
 struct AppError(anyhow::Error);
 
@@ -212,27 +215,8 @@ async fn fetch_channel(
 async fn download(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
-    Json(media): Json<tl::enums::MessageMedia>,
+    Json(config): Json<DownloadConfig>,
 ) -> Result<Body> {
-    let rx = s.download_media(session_id, media).await?;
-    Ok(Body::new(DownloadResponse(rx)))
-}
-
-/// todo???
-pub struct DownloadResponse(mpsc::Receiver<std::result::Result<Bytes, String>>);
-impl http_body::Body for DownloadResponse {
-    type Data = Bytes;
-
-    type Error = String;
-
-    fn poll_frame(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<std::result::Result<http_body::Frame<Self::Data>, Self::Error>>> {
-        let this = self.get_mut();
-        match this.0.poll_recv(cx) {
-            Poll::Ready(data) => Poll::Ready(data.map(|a| a.map(|a| http_body::Frame::data(a)))),
-            Poll::Pending => Poll::Pending,
-        }
-    }
+    let rx = s.download_media_http(session_id, config).await?;
+    Ok(rx)
 }

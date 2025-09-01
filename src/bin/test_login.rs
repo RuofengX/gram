@@ -6,7 +6,8 @@ include!("../../.config.rs");
 async fn main() -> anyhow::Result<()> {
     let freeze = FrozenSession::load("./test.session")?;
 
-    let client = Scraper::from_frozen(freeze).await?;
+    let api_config = &TEST_CONFIG.into();
+    let client = Scraper::from_frozen(freeze, api_config).await?;
 
     let this = client.check_self().await?;
 
