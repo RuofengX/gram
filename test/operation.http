@@ -9,6 +9,11 @@ content-type: application/json
 ###
 
 POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/join-link HTTP/1.1
-content-type: application/json
 
-"https://t.me/bx666"
+"t.me/aa133"
+
+### 
+
+POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/resolve-username HTTP/1.1
+
+"dny198"

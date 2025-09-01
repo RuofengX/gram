@@ -131,24 +131,30 @@ async fn unfreeze(
 
 fn operate(state: AppState) -> Router {
     Router::new()
-        .route("/{session_id}/check-self", get(check_self))
+        // 幂等类请求
+        .route("/{session_id}/resolve-username", post(resolve_username))
+        .route("/{session_id}/user/fetch", post(fetch_user))
+        .route("/{session_id}/channel/fetch", post(fetch_channel))
+        .route("/{session_id}/download", post(download))
+        // 生命周期相关
         .route("/{session_id}/freeze", get(freeze))
         .route("/{session_id}/logout", get(logout))
+        .route("/{session_id}/check-self", get(check_self))
+        // 聊天相关
         .route("/{session_id}/chat/join", post(join_chat))
         .route("/{session_id}/chat/join-link", post(join_chat_link))
         .route("/{session_id}/chat/quit", post(quit_chat))
         .route("/{session_id}/chat/iter-msg", post(fetch_msg))
-        .route("/{session_id}/user/fetch", post(fetch_user))
-        .route("/{session_id}/channel/fetch", post(fetch_channel))
-        .route("/{session_id}/download", post(download))
         .with_state(state)
 }
 
+/// 检测自身信息  
+/// 通常用于登录是否成功的检查
 async fn check_self(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
 ) -> Result<Json<tl::types::User>> {
-    let u = s.check_self(session_id).await?;
+    let u = s.get_session(&session_id)?.value().check_self().await?;
     Ok(Json(u))
 }
 
@@ -170,17 +176,36 @@ async fn join_chat(
     Path(session_id): Path<Uuid>,
     Json(packed_chat): Json<PackedChat>,
 ) -> Result<()> {
-    s.join_chat(session_id, packed_chat).await?;
+    s.get_session(&session_id)?
+        .value()
+        .join_chat(packed_chat)
+        .await?;
     Ok(())
 }
 
 async fn join_chat_link(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
-    Json(link): Json<String>,
+    link: String,
 ) -> Result<()> {
-    s.join_chat_link(session_id, &link).await?;
+    s.get_session(&session_id)?
+        .value()
+        .join_chat_link(&link)
+        .await?;
     Ok(())
+}
+
+async fn resolve_username(
+    State(s): State<AppState>,
+    Path(session_id): Path<Uuid>,
+    username: String,
+) -> Result<Json<PackedChat>> {
+    let ret = s
+        .get_session(&session_id)?
+        .value()
+        .resolve_username(&username)
+        .await?;
+    Ok(Json(ret))
 }
 
 async fn quit_chat(
@@ -188,7 +213,10 @@ async fn quit_chat(
     Path(session_id): Path<Uuid>,
     Json(packed_chat): Json<PackedChat>,
 ) -> Result<()> {
-    s.quit_chat(session_id, packed_chat).await?;
+    s.get_session(&session_id)?
+        .value()
+        .quit_chat(packed_chat)
+        .await?;
     Ok(())
 }
 
@@ -225,7 +253,11 @@ async fn fetch_user(
     Path(session_id): Path<Uuid>,
     Json(user): Json<PackedChat>,
 ) -> Result<Json<tl::types::users::UserFull>> {
-    let ret = s.fetch_user(session_id, user).await?;
+    let ret = s
+        .get_session(&session_id)?
+        .value()
+        .fetch_user_info(user)
+        .await?;
     Ok(Json(ret))
 }
 
@@ -234,7 +266,11 @@ async fn fetch_channel(
     Path(session_id): Path<Uuid>,
     Json(channel): Json<PackedChat>,
 ) -> Result<Json<tl::types::messages::ChatFull>> {
-    let ret = s.fetch_channel(session_id, channel).await?;
+    let ret = s
+        .get_session(&session_id)?
+        .value()
+        .fetch_channel_info(channel)
+        .await?;
     Ok(Json(ret))
 }
 
@@ -246,6 +282,8 @@ async fn download(
     Path(session_id): Path<Uuid>,
     Json(config): Json<DownloadConfig>,
 ) -> Result<Body> {
-    let rx = s.download_media_http(session_id, config).await?;
-    Ok(rx)
+    let s = s.get_session(&session_id)?;
+    let rx = s.value().download_media(config)?;
+    let body = Body::new(rx);
+    Ok(body)
 }

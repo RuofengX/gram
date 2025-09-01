@@ -1,16 +1,12 @@
 use anyhow::{Result, anyhow};
-use axum::body::Body;
 use dashmap::{DashMap, mapref::one::Ref};
-use grammers_client::{
-    grammers_tl_types as tl,
-    types::{LoginToken, PackedChat},
-};
+use grammers_client::{grammers_tl_types as tl, types::LoginToken};
 use tokio::sync::{mpsc, oneshot::Receiver};
 use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    scraper::{DownloadConfig, HistoryConfig, Scraper},
+    scraper::{HistoryConfig, Scraper},
     types::{ApiConfig, FrozenSession},
 };
 
@@ -31,7 +27,7 @@ impl Executor {
         }
     }
 
-    fn get(&self, session_id: &Uuid) -> Result<Ref<'_, Uuid, Scraper>> {
+    pub fn get_session(&self, session_id: &Uuid) -> Result<Ref<'_, Uuid, Scraper>> {
         self.scrapers
             .get(session_id)
             .ok_or(anyhow!("session not exist"))
@@ -60,10 +56,8 @@ impl Executor {
     }
     /// 使用登录请求ID+验证码登录
     pub async fn confirm_login(&self, login_id: Uuid, code: &str) -> Result<Uuid> {
-        let (uuid, (s, login_token)) = self
-            .logins
-            .remove(&login_id)
-            .ok_or(anyhow!("会话不存在"))?;
+        let (uuid, (s, login_token)) =
+            self.logins.remove(&login_id).ok_or(anyhow!("会话不存在"))?;
         s.confirm_login(login_token, code).await?;
         self.scrapers.insert(uuid, s);
         Ok(uuid)
@@ -94,14 +88,6 @@ impl Executor {
 }
 
 impl Executor {
-    /// 检测自身信息  
-    /// 通常用于登录是否成功的检查
-    pub async fn check_self(&self, session_id: Uuid) -> Result<tl::types::User> {
-        let s = self.get(&session_id)?;
-        let ret = s.value().check_self().await?;
-        Ok(ret)
-    }
-
     /// 将会话冻结, 并从本地活跃状态删除
     pub fn freeze(&self, session_id: Uuid) -> Result<FrozenSession> {
         let (_, s) = self
@@ -122,24 +108,6 @@ impl Executor {
         Ok(())
     }
 
-    pub async fn join_chat(&self, session_id: Uuid, packed_chat: PackedChat) -> Result<()> {
-        let s = self.get(&session_id)?;
-        s.value().join_chat(packed_chat).await?;
-        Ok(())
-    }
-
-    pub async fn join_chat_link(&self, session_id: Uuid, link: &str) -> Result<()> {
-        let s = self.get(&session_id)?;
-        s.value().join_chat_link(link).await?;
-        Ok(())
-    }
-
-    pub async fn quit_chat(&self, session_id: Uuid, packed_chat: PackedChat) -> Result<()> {
-        let s = self.get(&session_id)?;
-        s.value().quit_chat(packed_chat).await?;
-        Ok(())
-    }
-
     /// 获取对话历史
     pub async fn fetch_history(
         &self,
@@ -147,7 +115,7 @@ impl Executor {
         config: HistoryConfig,
         writer: mpsc::Sender<tl::enums::Message>,
     ) -> Result<()> {
-        let s = self.get(&session_id)?;
+        let s = self.get_session(&session_id)?;
         let mut i = s.value().iter_history(config)?;
         tokio::spawn(async move {
             warn!("start fetch message from chat({})", config.chat.id);
@@ -165,35 +133,5 @@ impl Executor {
             }
         });
         Ok(())
-    }
-
-    pub async fn fetch_user(
-        &self,
-        session_id: Uuid,
-        user: PackedChat,
-    ) -> Result<tl::types::users::UserFull> {
-        let s = self.get(&session_id)?;
-        let ret = s.value().fetch_user_info(user).await?;
-        Ok(ret)
-    }
-
-    pub async fn fetch_channel(
-        &self,
-        session_id: Uuid,
-        channel: PackedChat,
-    ) -> Result<tl::types::messages::ChatFull> {
-        let s = self.get(&session_id)?;
-        let ret = s.value().fetch_channel_info(channel).await?;
-        Ok(ret)
-    }
-
-    pub async fn download_media_http(
-        &self,
-        session_id: Uuid,
-        config: DownloadConfig,
-    ) -> Result<Body> {
-        let s = self.get(&session_id)?;
-        let session = s.value().download_media(config)?;
-        Ok(Body::new(session))
     }
 }

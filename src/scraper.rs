@@ -145,6 +145,11 @@ impl Scraper {
         Ok(())
     }
 
+    pub async fn resolve_username(&self, username: &str) -> Result<PackedChat>{
+        let chat = self.client.resolve_username(username).await?.ok_or(anyhow!("未找到用户"))?;
+        Ok(chat.pack())
+    }
+
     pub async fn fetch_user_info(&self, user: PackedChat) -> Result<tl::types::users::UserFull> {
         if !user.is_user() {
             bail!("target chat not user");
