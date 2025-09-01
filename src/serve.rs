@@ -7,9 +7,10 @@ use axum::{
     extract::{Path, State, WebSocketUpgrade, ws::Message},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{any, get, post},
+    routing::{get, post},
 };
 use grammers_client::{grammers_tl_types as tl, types::PackedChat};
+use serde::Deserialize;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -42,7 +43,8 @@ type Result<T> = std::result::Result<T, AppError>;
 
 type AppState = Arc<Executor>;
 
-pub fn app(state: AppState) -> Router {
+pub fn app(executor: Executor) -> Router {
+    let state = AppState::new(executor);
     Router::new()
         .nest("/ctrl", control(state.clone()))
         .nest("/op", operate(state.clone()))
@@ -50,12 +52,39 @@ pub fn app(state: AppState) -> Router {
 
 fn control(state: AppState) -> Router {
     Router::new()
-        .route("/login", any(login))
+        .route("/login/request", post(request_login))
+        .route("/login/confirm", post(confirm_login))
+        .route("/login-ws", post(login_ws))
         .route("/unfreeze", post(unfreeze))
         .with_state(state)
 }
 
-async fn login(
+#[derive(Debug, Deserialize)]
+struct RequestLogin {
+    phone: String,
+}
+async fn request_login(
+    State(s): State<AppState>,
+    Json(config): Json<RequestLogin>,
+) -> Result<Json<Uuid>> {
+    let ret = s.request_login(&config.phone).await?;
+    Ok(Json(ret))
+}
+
+#[derive(Debug, Deserialize)]
+struct ConfirmLogin {
+    login_id: Uuid,
+    code: String,
+}
+async fn confirm_login(
+    State(s): State<AppState>,
+    Json(config): Json<ConfirmLogin>,
+) -> Result<Json<Uuid>> {
+    let ret = s.confirm_login(config.login_id, &config.code).await?;
+    Ok(Json(ret))
+}
+
+async fn login_ws(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
     Json(phone): Json<String>,
@@ -64,7 +93,7 @@ async fn login(
         let (tx, rx) = oneshot::channel();
         if let Err(e) = tokio::try_join!(
             async move {
-                s.login(phone, rx).await?;
+                s.login_async(phone, rx).await?;
                 Ok(())
             },
             async {

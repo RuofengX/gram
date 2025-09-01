@@ -24,13 +24,13 @@ impl Into<ApiConfig> for (i32, &'static str) {
 }
 
 /// 冻结的会话
-/// 
+///
 /// 会话可以离线保存, 类似应用网络静默, 冻结后系统不再分配计算资源  
 /// 内含会话凭证和会话ID(UUID)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrozenSession {
     pub uuid: Uuid,
-    #[serde(with = "serde_bytes")]
+    #[serde(with = "serde_repr_base64::base64")]
     pub data: Vec<u8>,
 }
 

@@ -1,10 +1,10 @@
-use std::io::BufRead;
+use std::{io::BufRead, sync::Once};
 
-pub mod scraper;
-pub mod types;
-pub mod serve;
 pub mod executor;
+pub mod scraper;
+pub mod serve;
 mod test;
+pub mod types;
 
 pub fn stdin_read_line(prompt: &'static str) -> tokio::sync::oneshot::Receiver<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -17,4 +17,32 @@ pub fn stdin_read_line(prompt: &'static str) -> tokio::sync::oneshot::Receiver<S
         tx.send(buffer).expect("channel should not close");
     });
     rx
+}
+
+static LOG_INIT: Once = Once::new();
+
+#[cfg(not(debug_assertions))]
+pub fn init_tracing() {
+    LOG_INIT.call_once(|| {
+        use tracing::Level;
+
+        tracing_subscriber::fmt()
+            .with_max_level(Level::INFO)
+            .with_target(false)
+            .init();
+    });
+}
+
+#[cfg(debug_assertions)]
+pub fn init_tracing() {
+    LOG_INIT.call_once(|| {
+        use tracing::Level;
+
+        tracing_subscriber::fmt()
+            .with_file(true)
+            .with_line_number(true)
+            .with_thread_names(true)
+            .with_max_level(Level::TRACE)
+            .init();
+    });
 }

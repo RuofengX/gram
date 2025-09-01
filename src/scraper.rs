@@ -7,7 +7,7 @@ use grammers_client::{
     client::messages::MessageIter,
     grammers_tl_types as tl,
     session::{self as session_tl, Session},
-    types::{Downloadable, Media, PackedChat},
+    types::{Downloadable, LoginToken, Media, PackedChat},
 };
 use http_body::Frame;
 use serde::Deserialize;
@@ -48,7 +48,7 @@ impl Scraper {
     /// 请求登录
     ///
     /// 输入手机号, 给手机号的Tg客户端发送验证码，之后从reader中读code并登录
-    pub async fn login(
+    pub async fn login_async(
         &self,
         phone: &str,
         code: tokio::sync::oneshot::Receiver<String>,
@@ -60,6 +60,20 @@ impl Scraper {
             tl::enums::User::Empty(_) => bail!("sign in with empty user"),
             tl::enums::User::User(u) => Ok(u),
         }
+    }
+
+    /// 请求登录
+    ///
+    /// 输入手机号, 给手机号的Tg客户端发送验证码，返回登录Token, 之后使用Token和验证码登录
+    pub async fn request_login(&self, phone: &str) -> Result<LoginToken> {
+        let ret = self.client.request_login_code(phone).await?;
+        Ok(ret)
+    }
+
+    /// 确认登录
+    pub async fn confirm_login(&self, login_token: LoginToken, code: &str) -> Result<()> {
+        self.client.sign_in(&login_token, code).await?;
+        Ok(())
     }
 
     /// 登出

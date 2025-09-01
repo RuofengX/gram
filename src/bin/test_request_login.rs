@@ -11,7 +11,7 @@ async fn main() -> anyhow::Result<()> {
     let code = stdin_read_line("请输入验证码");
 
     let u = client
-        .login(phone.await.unwrap().as_str(), code)
+        .login_async(phone.await.unwrap().as_str(), code)
         .await
         .unwrap();
 
