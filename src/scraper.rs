@@ -1,25 +1,42 @@
-use std::{pin::Pin, sync::Arc, task::Poll};
-
+use crate::types::{ApiConfig, FrozenSession};
 use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
 use grammers_client::{
-    Client, Config, InvocationError,
+    Client, Config, InitParams, InvocationError,
     client::messages::MessageIter,
-    grammers_tl_types as tl,
+    grammers_tl_types::{self as tl},
     session::{self as session_tl, Session},
     types::{Downloadable, LoginToken, Media, PackedChat},
 };
 use http_body::Frame;
 use serde::Deserialize;
+use std::{pin::Pin, sync::Arc, task::Poll, time::Duration};
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
-
-use crate::types::{ApiConfig, FrozenSession};
 
 const FILE_MIGRATE_ERROR: i32 = 303;
 const DOWNLOAD_CHUNK_SIZE: i32 = 0x1000000; // default 1MiB
+const RETRY_POLICY: &'static dyn grammers_client::ReconnectionPolicy =
+    &grammers_client::FixedReconnect {
+        attempts: 5,
+        delay: Duration::from_secs(1),
+    };
 
+fn init_params() -> InitParams {
+    let mut params = InitParams::default();
+    params.device_model = "DESKTOP-L2D4TG9I".to_owned();
+    params.system_version = "10.0.241".to_owned();
+    params.app_version = "0.1.0".to_owned();
+    params.system_lang_code = "en".to_owned();
+    params.lang_code = "my".to_owned();
+    params.catch_up = true;
+    params.server_addr = None;
+    params.flood_sleep_threshold = 0;
+    params.update_queue_limit = Some(0x1000000);
+    params.reconnection_policy = RETRY_POLICY;
+    params
+}
 #[derive(Debug)]
 pub struct Scraper {
     uuid: Uuid,
@@ -27,6 +44,10 @@ pub struct Scraper {
 }
 
 impl Scraper {
+    pub fn into_raw(self) -> Client{
+        self.client
+    }
+
     /// 新建
     ///
     /// 新建一个会话, 需要登录才可使用
@@ -91,11 +112,12 @@ impl Scraper {
         let FrozenSession { uuid, data } = frozen;
         let ApiConfig { api_id, api_hash } = api_config.clone();
         let session = Session::load(&data)?;
+
         let config = Config {
             session,
             api_id,
             api_hash,
-            params: Default::default(),
+            params: init_params(),
         };
 
         let client = Client::connect(config).await?;
@@ -116,38 +138,67 @@ impl Scraper {
 }
 
 impl Scraper {
-    pub async fn check_self(&self) -> Result<tl::types::User> {
+    pub async fn get_self(&self) -> Result<tl::types::User> {
         let me = self.client.get_me().await?;
         match me.raw {
             tl::enums::User::User(u) => Ok(u),
             tl::enums::User::Empty(_) => bail!("check failed, self is empty!"),
         }
     }
+
+    /// https://core.telegram.org/method/contacts.resolveUsername
+    pub async fn resolve_username(&self, username: &str) -> Result<PackedChat> {
+        debug!("resolve username {}", username);
+        let c = self
+            .client
+            .resolve_username(&username)
+            .await?
+            .ok_or(anyhow!("username not found"))?;
+        Ok(c.pack())
+    }
+
+    /// https://core.telegram.org/api/invites#public-usernames
     pub async fn join_chat(&self, chat: PackedChat) -> Result<()> {
-        let ret = self.client.join_chat(chat).await?;
-        match ret {
-            Some(c) => info!("joined chat: [{}]({})", c.name().unwrap_or("-"), c.id()),
-            None => warn!("client join chat return None value"),
-        }
+        let c = self
+            .client
+            .join_chat(chat)
+            .await?
+            .ok_or(anyhow!("chat not found"))?;
+        info!("joined chat: [{}]({})", c.name().unwrap_or("-"), c.id());
         Ok(())
     }
 
+    pub async fn join_chat_name(&self, username: &str) -> Result<()> {
+        let chat = self.resolve_username(username).await?;
+        self.join_chat(chat).await?;
+        Ok(())
+    }
+
+    // 仅接受私有链接
     pub async fn join_chat_link(&self, link: &str) -> Result<()> {
-        let ret = self.client.accept_invite_link(link).await?;
-        match ret {
-            Some(c) => info!(
-                "joined chat link: [{}]({})",
-                c.name().unwrap_or("-"),
-                c.id()
-            ),
-            None => warn!("client join chat link return None value"),
-        }
+        let chat = self
+            .client
+            .accept_invite_link(link)
+            .await?
+            .ok_or(anyhow!("private chat not found"))?;
+        info!(
+            "joined chat link: [{}]({})",
+            chat.name().unwrap_or("-"),
+            chat.id()
+        );
         Ok(())
     }
 
-    pub async fn resolve_username(&self, username: &str) -> Result<PackedChat>{
-        let chat = self.client.resolve_username(username).await?.ok_or(anyhow!("未找到用户"))?;
-        Ok(chat.pack())
+    pub async fn list_chats(&self) -> Result<Vec<PackedChat>> {
+        let mut i = self.client.iter_dialogs();
+        let mut ret = Vec::new();
+        while let Some(dia) = i.next().await? {
+            ret.push(dia.chat().pack());
+        }
+
+        info!("list all chats/dialogs, {} items", ret.len());
+
+        Ok(ret)
     }
 
     pub async fn fetch_user_info(&self, user: PackedChat) -> Result<tl::types::users::UserFull> {

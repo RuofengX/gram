@@ -1,5 +1,8 @@
-use std::sync::Arc;
-
+use crate::{
+    executor::Executor,
+    scraper::{DownloadConfig, HistoryConfig},
+    types::FrozenSession,
+};
 use anyhow::bail;
 use axum::{
     Json, Router,
@@ -11,18 +14,19 @@ use axum::{
 };
 use grammers_client::{grammers_tl_types as tl, types::PackedChat};
 use serde::Deserialize;
+use std::{fmt::Display, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{error, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::{
-    executor::Executor,
-    scraper::{DownloadConfig, HistoryConfig},
-    types::FrozenSession,
-};
-
+#[derive(Debug)]
 struct AppError(anyhow::Error);
 
+impl Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 impl From<anyhow::Error> for AppError {
     fn from(value: anyhow::Error) -> Self {
         AppError(value)
@@ -63,6 +67,7 @@ fn control(state: AppState) -> Router {
 struct RequestLogin {
     phone: String,
 }
+#[instrument(level = "info", err, ret, skip(s))]
 async fn request_login(
     State(s): State<AppState>,
     Json(config): Json<RequestLogin>,
@@ -76,6 +81,8 @@ struct ConfirmLogin {
     login_id: Uuid,
     code: String,
 }
+
+#[instrument(level = "info", err, ret, skip(s))]
 async fn confirm_login(
     State(s): State<AppState>,
     Json(config): Json<ConfirmLogin>,
@@ -84,6 +91,7 @@ async fn confirm_login(
     Ok(Json(ret))
 }
 
+#[instrument(level = "info", err, ret, skip(ws, s))]
 async fn login_ws(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
@@ -121,6 +129,7 @@ async fn login_ws(
     Ok(ret)
 }
 
+#[instrument(level = "info", err, ret, skip(s, frozen))]
 async fn unfreeze(
     State(s): State<AppState>,
     Json(frozen): Json<FrozenSession>,
@@ -131,18 +140,20 @@ async fn unfreeze(
 
 fn operate(state: AppState) -> Router {
     Router::new()
-        // 幂等类请求
-        .route("/{session_id}/resolve-username", post(resolve_username))
-        .route("/{session_id}/user/fetch", post(fetch_user))
-        .route("/{session_id}/channel/fetch", post(fetch_channel))
-        .route("/{session_id}/download", post(download))
         // 生命周期相关
         .route("/{session_id}/freeze", get(freeze))
         .route("/{session_id}/logout", get(logout))
         .route("/{session_id}/check-self", get(check_self))
+        // 信息
+        .route("/{session_id}/info/user", post(fetch_user))
+        .route("/{session_id}/info/channel", post(fetch_channel))
+        // 文件
+        .route("/{session_id}/file/download", post(download))
         // 聊天相关
+        .route("/{session_id}/chat/resolve", post(resolve_username))
+        .route("/{session_id}/chat/list", get(list_chat))
         .route("/{session_id}/chat/join", post(join_chat))
-        .route("/{session_id}/chat/join-link", post(join_chat_link))
+        .route("/{session_id}/chat/join-by-name", post(join_chat_name))
         .route("/{session_id}/chat/quit", post(quit_chat))
         .route("/{session_id}/chat/iter-msg", post(fetch_msg))
         .with_state(state)
@@ -150,14 +161,16 @@ fn operate(state: AppState) -> Router {
 
 /// 检测自身信息  
 /// 通常用于登录是否成功的检查
+#[instrument(level = "info", err, ret, skip(s))]
 async fn check_self(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
 ) -> Result<Json<tl::types::User>> {
-    let u = s.get_session(&session_id)?.value().check_self().await?;
+    let u = s.get_session(&session_id)?.value().get_self().await?;
     Ok(Json(u))
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
 async fn freeze(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
@@ -166,11 +179,13 @@ async fn freeze(
     Ok(Json(s))
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
 async fn logout(State(s): State<AppState>, Path(session_id): Path<Uuid>) -> Result<()> {
     s.logout(session_id).await?;
     Ok(())
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
 async fn join_chat(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
@@ -183,18 +198,20 @@ async fn join_chat(
     Ok(())
 }
 
-async fn join_chat_link(
+#[instrument(level = "info", err, ret, skip(s))]
+async fn join_chat_name(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
-    link: String,
+    chat_name: String,
 ) -> Result<()> {
     s.get_session(&session_id)?
         .value()
-        .join_chat_link(&link)
+        .join_chat_name(&chat_name)
         .await?;
     Ok(())
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
 async fn resolve_username(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
@@ -208,11 +225,22 @@ async fn resolve_username(
     Ok(Json(ret))
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
+async fn list_chat(
+    State(s): State<AppState>,
+    Path(session_id): Path<Uuid>,
+) -> Result<Json<Vec<PackedChat>>> {
+    let ret = s.get_session(&session_id)?.value().list_chats().await?;
+    Ok(Json(ret))
+}
+
+#[instrument(level = "info", err, ret, skip(s))]
 async fn quit_chat(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
     Json(packed_chat): Json<PackedChat>,
 ) -> Result<()> {
+    info!("list chat");
     s.get_session(&session_id)?
         .value()
         .quit_chat(packed_chat)
@@ -221,6 +249,7 @@ async fn quit_chat(
 }
 
 /// 拉取聊天历史记录, 将数据json格式化后写入websocket
+#[instrument(level = "info", err, ret, skip(s))]
 async fn fetch_msg(
     ws: WebSocketUpgrade,
     State(s): State<AppState>,
@@ -248,6 +277,7 @@ async fn fetch_msg(
     Ok(ret)
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
 async fn fetch_user(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
@@ -261,6 +291,7 @@ async fn fetch_user(
     Ok(Json(ret))
 }
 
+#[instrument(level = "info", err, ret, skip(s))]
 async fn fetch_channel(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
@@ -277,6 +308,7 @@ async fn fetch_channel(
 /// 打开一个长连接, sse传输下载内容
 ///
 /// media: 来自ws接口fetch_msg方法迭代的message.media字段
+#[instrument(level = "info", err, ret, skip(s))]
 async fn download(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,

@@ -622,6 +622,7 @@ dependencies = [
  "dashmap",
  "futures-core",
  "grammers-client",
+ "grammers-mtsender 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "http-body",
  "postcard",
  "serde",
@@ -642,11 +643,11 @@ source = "git+https://github.com/Lonami/grammers#f1e0736781c8d00245e13704830653c
 dependencies = [
  "chrono",
  "futures-util",
- "grammers-crypto",
- "grammers-mtproto",
- "grammers-mtsender",
+ "grammers-crypto 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-mtproto 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-mtsender 0.7.0 (git+https://github.com/Lonami/grammers)",
  "grammers-session",
- "grammers-tl-types",
+ "grammers-tl-types 0.7.0 (git+https://github.com/Lonami/grammers)",
  "locate-locale",
  "log",
  "md5",
@@ -656,6 +657,23 @@ dependencies = [
  "tokio",
  "url",
  "web-time",
+]
+
+[[package]]
+name = "grammers-crypto"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17c75ce8d715d407a5767a94b5fd7b210106ec5c29c7be8ff4dfdca58de4dcf6"
+dependencies = [
+ "aes",
+ "getrandom 0.2.16",
+ "glass_pumpkin",
+ "hmac",
+ "num-bigint",
+ "num-traits",
+ "pbkdf2",
+ "sha1",
+ "sha2",
 ]
 
 [[package]]
@@ -678,18 +696,50 @@ dependencies = [
 [[package]]
 name = "grammers-mtproto"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d057562ccd5ac7437683534634e469875db27827a7febd42cb6b775ffd01dff"
+dependencies = [
+ "bytes",
+ "crc32fast",
+ "flate2",
+ "getrandom 0.2.16",
+ "grammers-crypto 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grammers-tl-types 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log",
+ "num-bigint",
+ "sha1",
+]
+
+[[package]]
+name = "grammers-mtproto"
+version = "0.7.0"
 source = "git+https://github.com/Lonami/grammers#f1e0736781c8d00245e13704830653c2b279b210"
 dependencies = [
  "bytes",
  "crc32fast",
  "flate2",
  "getrandom 0.2.16",
- "grammers-crypto",
- "grammers-tl-types",
+ "grammers-crypto 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-tl-types 0.7.0 (git+https://github.com/Lonami/grammers)",
  "log",
  "num-bigint",
  "sha1",
  "web-time",
+]
+
+[[package]]
+name = "grammers-mtsender"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49b077919dbbacab7644f8479f0c4456625714313334986b4f7c812691aac96a"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "grammers-crypto 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grammers-mtproto 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grammers-tl-types 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log",
+ "tokio",
 ]
 
 [[package]]
@@ -700,10 +750,10 @@ dependencies = [
  "async_io_stream",
  "bytes",
  "futures-util",
- "grammers-crypto",
- "grammers-mtproto",
+ "grammers-crypto 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-mtproto 0.7.0 (git+https://github.com/Lonami/grammers)",
  "grammers-session",
- "grammers-tl-types",
+ "grammers-tl-types 0.7.0 (git+https://github.com/Lonami/grammers)",
  "log",
  "tokio",
  "wasm-bindgen-futures",
@@ -717,10 +767,10 @@ name = "grammers-session"
 version = "0.7.0"
 source = "git+https://github.com/Lonami/grammers#f1e0736781c8d00245e13704830653c2b279b210"
 dependencies = [
- "grammers-crypto",
- "grammers-tl-gen",
- "grammers-tl-parser",
- "grammers-tl-types",
+ "grammers-crypto 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-tl-gen 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-tl-parser 1.1.2 (git+https://github.com/Lonami/grammers)",
+ "grammers-tl-types 0.7.0 (git+https://github.com/Lonami/grammers)",
  "log",
  "serde",
  "serde_bytes",
@@ -731,9 +781,27 @@ dependencies = [
 [[package]]
 name = "grammers-tl-gen"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c214cadfba8cd8ef9368bdf273f56f688537b0310ea42f91fc746f4fd59b70b9"
+dependencies = [
+ "grammers-tl-parser 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "grammers-tl-gen"
+version = "0.7.0"
 source = "git+https://github.com/Lonami/grammers#f1e0736781c8d00245e13704830653c2b279b210"
 dependencies = [
- "grammers-tl-parser",
+ "grammers-tl-parser 1.1.2 (git+https://github.com/Lonami/grammers)",
+]
+
+[[package]]
+name = "grammers-tl-parser"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee695382f42bbeba75c08311785b208d7efa8ded80b33ae387157b07ee21267b"
+dependencies = [
+ "crc32fast",
 ]
 
 [[package]]
@@ -747,10 +815,20 @@ dependencies = [
 [[package]]
 name = "grammers-tl-types"
 version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49566409a69e4ff3340c1b6f392e5754c89fa1ea43be4584ac8ee74c1eb0643a"
+dependencies = [
+ "grammers-tl-gen 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "grammers-tl-parser 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "grammers-tl-types"
+version = "0.7.0"
 source = "git+https://github.com/Lonami/grammers#f1e0736781c8d00245e13704830653c2b279b210"
 dependencies = [
- "grammers-tl-gen",
- "grammers-tl-parser",
+ "grammers-tl-gen 0.7.0 (git+https://github.com/Lonami/grammers)",
+ "grammers-tl-parser 1.1.2 (git+https://github.com/Lonami/grammers)",
  "serde",
  "serde_bytes",
  "serde_derive",

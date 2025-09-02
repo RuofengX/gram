@@ -3,3 +3,4 @@
 session.json
 *.session
 .env
+.idea/

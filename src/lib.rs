@@ -42,7 +42,7 @@ pub fn init_tracing() {
             .with_file(true)
             .with_line_number(true)
             .with_thread_names(true)
-            .with_max_level(Level::TRACE)
+            .with_max_level(Level::DEBUG)
             .init();
     });
 }

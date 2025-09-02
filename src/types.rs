@@ -27,11 +27,23 @@ impl Into<ApiConfig> for (i32, &'static str) {
 ///
 /// 会话可以离线保存, 类似应用网络静默, 冻结后系统不再分配计算资源  
 /// 内含会话凭证和会话ID(UUID)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FrozenSession {
     pub uuid: Uuid,
     #[serde(with = "serde_repr_base64::base64")]
     pub data: Vec<u8>,
+}
+// serde_json::to_string_pretty(&self).unwrap().fmt(f)
+impl std::fmt::Debug for FrozenSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FrozenSession")
+            .field("uuid", &self.uuid)
+            .field(
+                "data",
+                &self.data.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            )
+            .finish()
+    }
 }
 
 impl FrozenSession {

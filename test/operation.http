@@ -6,14 +6,57 @@ content-type: application/json
 GET http://localhost:1170/op/{{$dotenv SESSION_ID}}/freeze HTTP/1.1
 content-type: application/json
 
+### 
+
+POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/resolve HTTP/1.1
+content-type: application/json
+
+MTGBG
+
 ###
 
-POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/join-link HTTP/1.1
 
-"t.me/aa133"
+GET http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/list HTTP/1.1
+content-type: application/json
+
+
+###
+
+POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/join HTTP/1.1
+content-type: application/json
+
+{
+    "ty": "Broadcast",
+    "id": 1630168522,
+    "access_hash": 6855744696224158010
+}
+
+###
+
+
+POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/quit HTTP/1.1
+content-type: application/json
+
+{
+    "ty": "Broadcast",
+    "id": 1630168522,
+    "access_hash": 6855744696224158010
+}
+
+
+###
+
+
+POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/info/channel HTTP/1.1
+content-type: application/json
+
+{
+    "ty": "Broadcast",
+    "id": 1630168522,
+    "access_hash": 6855744696224158010
+}
+
 
 ### 
 
-POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/resolve-username HTTP/1.1
 
-"dny198"
