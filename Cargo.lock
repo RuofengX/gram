@@ -544,6 +544,7 @@ dependencies = [
  "axum-streams",
  "bytes",
  "dashmap",
+ "futures-core",
  "grammers-client",
  "http-body",
  "serde",

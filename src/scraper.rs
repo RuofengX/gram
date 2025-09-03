@@ -2,21 +2,18 @@ use crate::types::{ApiConfig, FrozenSession};
 use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
 use grammers_client::{
-    Client, Config, InitParams, InvocationError,
+    Client, Config, InitParams,
     client::messages::MessageIter,
     grammers_tl_types::{self as tl},
     session::{self as session_tl, Session},
-    types::{Downloadable, LoginToken, Media, PackedChat},
+    types::{LoginToken, Media, PackedChat},
 };
-use http_body::Frame;
 use serde::Deserialize;
-use std::{pin::Pin, sync::Arc, task::Poll, time::Duration};
-use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use std::time::Duration;
+use tokio::sync::mpsc;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
-const FILE_MIGRATE_ERROR: i32 = 303;
-const DOWNLOAD_CHUNK_SIZE: i32 = 0x1000000; // default 1MiB
 const RETRY_POLICY: &'static dyn grammers_client::ReconnectionPolicy =
     &grammers_client::FixedReconnect {
         attempts: 5,
@@ -312,134 +309,38 @@ impl DownloadConfig {
     }
 }
 
-pub struct DownloadSession {
-    client: Client,
-    location: tl::enums::InputFileLocation,
-    size: usize,
-    chunk_size: i32,
-    offset: Arc<Mutex<i64>>,
-    dc: Arc<Mutex<Option<u32>>>,
-    future: Option<Pin<Box<dyn Future<Output = Result<Bytes>> + Send + Sync + 'static>>>,
-}
-impl DownloadSession {
-    pub fn try_new(config: DownloadConfig, client: &Client) -> Result<Self> {
-        let client = client.clone();
-        let DownloadConfig {
-            media,
-            offset,
-            chunk_size: limit,
-        } = config;
-        let media_ex = Media::from_raw(media).ok_or(anyhow!("unsupport media"))?;
-        let size = media_ex.size().ok_or(anyhow!("media has no size"))?;
-        let offset = Arc::new(Mutex::new(offset.unwrap_or(0)));
-        let chunk_size = limit.unwrap_or(DOWNLOAD_CHUNK_SIZE);
-        let location = media_ex
-            .to_raw_input_location()
-            .ok_or(anyhow!("cannot fetch media location"))?;
-        Ok(Self {
-            client,
-            location,
-            size,
-            offset,
-            chunk_size,
-            dc: Arc::new(Mutex::new(None)),
-            future: None,
-        })
-    }
-}
-
-impl DownloadSession {
-    fn chunk_download(&self) -> impl Future<Output = Result<Bytes>> + Send + Sync + 'static {
-        let client = self.client.clone();
-        let location = self.location.clone();
-        let limit = self.chunk_size;
-        let offset = self.offset.clone();
-        let dc = self.dc.clone();
-
-        return async move {
-            let offset = offset.lock().await.clone();
-            let request = tl::functions::upload::GetFile {
-                precise: true,
-                cdn_supported: false,
-                location,
-                offset,
-                limit,
-            };
-            let mut retry = 0;
-            while retry < 3 {
-                let res = match *dc.lock().await {
-                    None => client.invoke(&request).await,
-                    Some(dc) => client.invoke_in_dc(&request, dc as i32).await,
-                };
-                match res {
-                    Ok(tl::enums::upload::File::File(f)) => return Ok(f.bytes.into()),
-
-                    Ok(tl::enums::upload::File::CdnRedirect(_)) => {
-                        bail!("server return cdn redict to a non-cdn request");
+impl Scraper {
+    pub fn download_media(
+        &self,
+        config: DownloadConfig,
+        tx: mpsc::Sender<Result<Bytes>>,
+    ) -> Result<()> {
+        let media_ex = Media::from_raw(config.media).ok_or(anyhow!("unsupport media"))?;
+        let mut ret = self.client.iter_download(&media_ex);
+        tokio::spawn(async move {
+            loop {
+                match ret.next().await {
+                    Ok(Some(data)) => {
+                        let _ = tx.send(Ok(data.into())).await.map_err(|e| {
+                            error!("下载数据管道错误: {}", e);
+                        });
+                    }
+                    Ok(None) => {
+                        break;
                     }
                     Err(e) => {
-                        if let InvocationError::Rpc(e) = &e {
-                            if e.code == FILE_MIGRATE_ERROR {
-                                // redirect dc
-                                *dc.lock().await = e.value;
-                                continue;
-                            }
-                        }
-                        warn!("retry download invoke error: {}", e);
-                        retry += 1;
+                        let _ = tx
+                            .send(Err(e.into()))
+                            .await
+                            .map_err(|e| {
+                                error!("下载数据管道错误: {}", e);
+                            })
+                            .unwrap();
+                        break;
                     }
                 }
             }
-            bail!("retry download too much times");
-        };
+        });
+        Ok(())
     }
 }
-
-// TODO: better implement futures_core::TryStream
-impl http_body::Body for DownloadSession {
-    type Data = Bytes;
-
-    type Error = anyhow::Error;
-
-    fn is_end_stream(&self) -> bool {
-        if self.future.is_some() {
-            // has download running
-            false
-        } else {
-            // download finished || retry 3 times
-            *self.offset.blocking_lock() >= self.size as i64
-        }
-    }
-
-    fn poll_frame(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Result<Frame<<DownloadSession as http_body::Body>::Data>>>> {
-        let this = self.get_mut();
-
-        // redirect to running download if exists:
-        if let Some(future) = &mut this.future {
-            return future
-                .as_mut()
-                .poll(cx)
-                .map(|r| Some(r.map(|d| Frame::data(d))));
-        }
-
-        // all download is end
-        if this.is_end_stream() {
-            return Poll::Ready(None);
-        }
-
-        // continue download next chunk
-        this.future = Some(Box::pin(this.chunk_download()));
-        return Poll::Pending;
-    }
-}
-
-impl Scraper {
-    pub fn download_media(&self, config: DownloadConfig) -> Result<DownloadSession> {
-        DownloadSession::try_new(config, &self.client)
-    }
-}
-
-

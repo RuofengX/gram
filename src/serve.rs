@@ -349,7 +349,9 @@ async fn download(
     Json(config): Json<DownloadConfig>,
 ) -> Result<Body> {
     let s = s.get_session(&session_id)?;
-    let rx = s.value().download_media(config)?;
-    let body = Body::new(rx);
+    let (tx, rx) = mpsc::channel(1024);
+    s.value().download_media(config, tx)?;
+    let rx_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    let body = Body::from_stream(rx_stream);
     Ok(body)
 }

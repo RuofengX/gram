@@ -40,7 +40,11 @@ impl std::fmt::Debug for FrozenSession {
             .field("uuid", &self.uuid)
             .field(
                 "data",
-                &self.data.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+                &self
+                    .data
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>(),
             )
             .finish()
     }
@@ -83,7 +87,4 @@ impl FrozenSession {
     }
 }
 
-
-pub struct JsonLinesResponse{
-
-}
+pub struct JsonLinesResponse {}
