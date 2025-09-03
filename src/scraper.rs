@@ -44,7 +44,7 @@ pub struct Scraper {
 }
 
 impl Scraper {
-    pub fn into_raw(self) -> Client{
+    pub fn into_raw(self) -> Client {
         self.client
     }
 
@@ -253,20 +253,31 @@ impl Scraper {
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct HistoryConfig {
     pub chat: PackedChat,
-    pub limit: usize,
+    pub limit: Option<usize>,
     /// 参阅官方文档 tl::functions::messages::GetHistory
-    pub offset_date: i32,
+    pub offset_date: Option<i32>,
     /// 参阅官方文档 tl::functions::messages::GetHistory
-    pub offset_id: i32,
+    pub offset_id: Option<i32>,
 }
 impl Scraper {
     pub fn iter_history(&self, config: HistoryConfig) -> Result<MessageIter> {
-        let ret = self
-            .client
-            .iter_messages(config.chat)
-            .limit(config.limit)
-            .max_date(config.offset_date)
-            .offset_id(config.offset_id);
+        let ret = self.client.iter_messages(config.chat);
+
+        let ret = if let Some(limit) = config.limit {
+            ret.limit(limit)
+        } else {
+            ret
+        };
+        let ret = if let Some(max_date) = config.offset_date {
+            ret.max_date(max_date)
+        } else {
+            ret
+        };
+        let ret = if let Some(offset_id) = config.offset_id {
+            ret.offset_id(offset_id)
+        } else {
+            ret
+        };
 
         Ok(ret)
     }
@@ -430,3 +441,5 @@ impl Scraper {
         DownloadSession::try_new(config, &self.client)
     }
 }
+
+

@@ -82,3 +82,8 @@ impl FrozenSession {
         Ok(Self::loads(&buf)?)
     }
 }
+
+
+pub struct JsonLinesResponse{
+
+}

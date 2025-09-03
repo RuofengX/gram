@@ -37,11 +37,7 @@ content-type: application/json
 POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/quit HTTP/1.1
 content-type: application/json
 
-{
-    "ty": "Broadcast",
-    "id": 1630168522,
-    "access_hash": 6855744696224158010
-}
+{{$dotenv CHAT}}
 
 
 ###
@@ -50,13 +46,21 @@ content-type: application/json
 POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/info/channel HTTP/1.1
 content-type: application/json
 
-{
-    "ty": "Broadcast",
-    "id": 1630168522,
-    "access_hash": 6855744696224158010
-}
+{{$dotenv CHAT}}
 
 
 ### 
 
+GET http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/list HTTP/1.1
+
+###
+
+
+POST http://localhost:1170/op/{{$dotenv SESSION_ID}}/chat/iter-msg HTTP/1.1
+content-type: application/json
+
+{
+    "chat": {{$dotenv CHAT}},
+    "limit": 10
+}
 

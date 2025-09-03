@@ -12,11 +12,12 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use axum_streams::StreamBodyAs;
 use grammers_client::{grammers_tl_types as tl, types::PackedChat};
 use serde::Deserialize;
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -251,29 +252,62 @@ async fn quit_chat(
 /// 拉取聊天历史记录, 将数据json格式化后写入websocket
 #[instrument(level = "info", err, ret, skip(s))]
 async fn fetch_msg(
-    ws: WebSocketUpgrade,
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
     Json(config): Json<HistoryConfig>,
-) -> Result<Response> {
-    let ret = ws.on_upgrade(async move |mut ws| {
-        let (tx, mut rx) = mpsc::channel(1024);
-        if let Err(e) = tokio::try_join!(
-            async {
-                s.fetch_history(session_id, config, tx).await?;
-                anyhow::Ok(())
-            },
-            async {
-                while let Some(msg) = rx.recv().await {
-                    let msg_byte = serde_json::to_vec(&msg)?;
-                    ws.send(msg_byte.into()).await?;
+) -> Result<impl IntoResponse> {
+    let (tx, rx) = mpsc::channel(1024);
+
+    let mut iter = s.get_session(&session_id)?.value().iter_history(config)?;
+
+    tokio::spawn(async move {
+        // 配置、启动迭代器
+        // 迭代消息
+        loop {
+            match iter.next().await {
+                // 成功获取下一条消息
+                Ok(Some(msg)) => {
+                    info!(
+                        "获取聊天({})消息: (id:{}, date:{}, text_len:{})",
+                        config.chat.id,
+                        msg.id(),
+                        msg.date(),
+                        msg.text().len(),
+                    );
+                    debug!(
+                        "msg text: {}",
+                        msg.text().chars().take(150).collect::<String>()
+                    );
+                    let msg = msg.raw;
+                    let _ = tx
+                        .send(Ok(msg))
+                        .await
+                        .map_err(|e| error!("消息传输失败: {}", e));
                 }
-                Ok(())
+                // 消息结束
+                Ok(None) => {
+                    // tx自动drop之后rx.recv会收到None
+                    // https://docs.rs/tokio/latest/tokio/sync/mpsc/struct.Receiver.html#method.recv
+                    info!("迭代聊天({})消息结束", config.chat.id);
+                    break;
+                }
+                // 获取失败
+                Err(e) => {
+                    warn!("迭代聊天({})消息错误: {}", config.chat.id, e);
+                    let _ = tx
+                        .send(Err(axum::Error::new(e)))
+                        .await
+                        .map_err(|e| error!("消息传输失败: {}", e));
+                    break;
+                }
             }
-        ) {
-            warn!("fetch history error: {e}");
         }
     });
+
+    // 将接收器转换为对象流
+    let rx_stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    // 将流转换为json_newline格式的body
+    let ret = StreamBodyAs::json_nl_with_errors(rx_stream);
     Ok(ret)
 }
 
