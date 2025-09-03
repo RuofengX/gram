@@ -144,7 +144,7 @@ fn operate(state: AppState) -> Router {
         // 生命周期相关
         .route("/{session_id}/freeze", get(freeze))
         .route("/{session_id}/logout", get(logout))
-        .route("/{session_id}/check-self", get(check_self))
+        .route("/{session_id}/self", get(check_self))
         // 信息
         .route("/{session_id}/info/user", post(fetch_user))
         .route("/{session_id}/info/channel", post(fetch_channel))

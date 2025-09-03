@@ -1,4 +1,4 @@
-GET http://localhost:1170/op/{{$dotenv SESSION_ID}}/check-self HTTP/1.1
+GET http://localhost:1170/op/{{$dotenv SESSION_ID}}/self HTTP/1.1
 content-type: application/json
 
 ###
