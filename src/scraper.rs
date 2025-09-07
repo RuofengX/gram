@@ -36,8 +36,8 @@ fn init_params() -> InitParams {
 }
 #[derive(Debug)]
 pub struct Scraper {
-    uuid: Uuid,
-    client: Client,
+    pub(crate) uuid: Uuid,
+    pub(crate) client: Client,
 }
 
 impl Scraper {
@@ -165,10 +165,10 @@ impl Scraper {
         Ok(())
     }
 
-    pub async fn join_chat_name(&self, username: &str) -> Result<()> {
+    pub async fn join_chat_name(&self, username: &str) -> Result<PackedChat> {
         let chat = self.resolve_username(username).await?;
         self.join_chat(chat).await?;
-        Ok(())
+        Ok(chat)
     }
 
     // 仅接受私有链接
