@@ -10,6 +10,7 @@ async fn main() {
     let executor = Executor::new(TEST_API_CONFIG.into());
 
     let bind = "[::]:1170";
+    
     let listener = tokio::net::TcpListener::bind(bind).await.unwrap();
 
     warn!("server start at {}", bind);

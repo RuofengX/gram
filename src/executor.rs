@@ -6,8 +6,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    scraper::{HistoryConfig, Scraper},
-    types::{ApiConfig, FrozenSession},
+    scraper::{HistoryConfig, Scraper}, types::{ApiConfig, FrozenSession},
 };
 
 pub struct Executor {
@@ -77,13 +76,12 @@ impl Executor {
     }
 
     /// 从冻结（离线保存）的会话中恢复, 返回会话ID
-    pub async fn unfreeze(&self, frozen: FrozenSession) -> Result<Uuid> {
-        let uuid = frozen.uuid;
-        if !self.scrapers.contains_key(&uuid) {
+    pub async fn unfreeze(&self, id: Uuid, frozen: FrozenSession) -> Result<Uuid> {
+        if !self.scrapers.contains_key(&id) {
             let s = Scraper::from_frozen(frozen, &self.api_config).await?;
-            self.scrapers.insert(uuid, s);
+            self.scrapers.insert(id, s);
         }
-        Ok(uuid)
+        Ok(id)
     }
 }
 

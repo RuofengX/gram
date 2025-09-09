@@ -1,43 +1,33 @@
+use crate::entity::{global_api_config, user_scraper};
+use anyhow::Result;
+use sea_orm::FromJsonQueryResult;
+use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
 };
-
-use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use tracing::{info, trace};
-use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ApiConfig {
     pub api_id: i32,
     pub api_hash: String,
-}
-impl Into<ApiConfig> for (i32, &'static str) {
-    fn into(self) -> ApiConfig {
-        ApiConfig {
-            api_id: self.0,
-            api_hash: self.1.to_string(),
-        }
-    }
 }
 
 /// 冻结的会话
 ///
 /// 会话可以离线保存, 类似应用网络静默, 冻结后系统不再分配计算资源  
 /// 内含会话凭证和会话ID(UUID)
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct FrozenSession {
-    pub uuid: Uuid,
     #[serde(with = "serde_repr_base64::base64")]
     pub data: Vec<u8>,
 }
-// serde_json::to_string_pretty(&self).unwrap().fmt(f)
+
 impl std::fmt::Debug for FrozenSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FrozenSession")
-            .field("uuid", &self.uuid)
             .field(
                 "data",
                 &self
@@ -86,5 +76,3 @@ impl FrozenSession {
         Ok(Self::loads(&buf)?)
     }
 }
-
-pub struct JsonLinesResponse {}

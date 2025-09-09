@@ -130,18 +130,10 @@ async fn login_ws(
     Ok(ret)
 }
 
-#[instrument(level = "info", err, ret, skip(s, frozen))]
-async fn unfreeze(
-    State(s): State<AppState>,
-    Json(frozen): Json<FrozenSession>,
-) -> Result<Json<Uuid>> {
-    let uuid = s.unfreeze(frozen).await?;
-    Ok(Json(uuid))
-}
-
 fn operate(state: AppState) -> Router {
     Router::new()
         // 生命周期相关
+        .route("/{session_id}/unfreeze", get(unfreeze))
         .route("/{session_id}/freeze", get(freeze))
         .route("/{session_id}/logout", get(logout))
         .route("/{session_id}/self", get(check_self))
@@ -158,6 +150,16 @@ fn operate(state: AppState) -> Router {
         .route("/{session_id}/chat/quit", post(quit_chat))
         .route("/{session_id}/chat/iter-msg", post(fetch_msg))
         .with_state(state)
+}
+
+#[instrument(level = "info", err, ret, skip(s, frozen))]
+async fn unfreeze(
+    State(s): State<AppState>,
+    Path(session_id): Path<Uuid>,
+    Json(frozen): Json<FrozenSession>,
+) -> Result<Json<Uuid>> {
+    let uuid = s.unfreeze(session_id, frozen).await?;
+    Ok(Json(uuid))
 }
 
 /// 检测自身信息  
