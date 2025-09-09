@@ -7,5 +7,4 @@ DROP TABLE peer_participant CASCADE;
 DROP TABLE peer_people CASCADE;
 DROP TABLE user_account CASCADE;
 DROP TABLE user_chat CASCADE;
-DROP TABLE user_confirm CASCADE;
 DROP TABLE esse_interest_channel CASCADE;

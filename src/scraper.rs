@@ -12,7 +12,6 @@ use serde::Deserialize;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
-use uuid::Uuid;
 
 const RETRY_POLICY: &'static dyn grammers_client::ReconnectionPolicy =
     &grammers_client::FixedReconnect {
@@ -35,31 +34,27 @@ fn init_params() -> InitParams {
     params
 }
 #[derive(Debug)]
-pub struct Scraper {
-    pub(crate) uuid: Uuid,
-    pub(crate) client: Client,
-}
+pub struct Scraper(Client);
 
 impl Scraper {
     pub fn into_raw(self) -> Client {
-        self.client
+        self.0
     }
 
     /// 新建
     ///
     /// 新建一个会话, 需要登录才可使用
     pub async fn new(api_config: &ApiConfig) -> Result<Self> {
-        let uuid = Uuid::new_v4();
         let session = session_tl::Session::new();
         let ApiConfig { api_id, api_hash } = api_config.clone();
         let config = Config {
             session,
             api_id,
             api_hash,
-            params: Default::default(),
+            params: init_params(),
         };
         let client = Client::connect(config).await?;
-        let ret = Self { uuid, client };
+        let ret = Self(client);
         Ok(ret)
     }
 
@@ -71,9 +66,9 @@ impl Scraper {
         phone: &str,
         code: tokio::sync::oneshot::Receiver<String>,
     ) -> Result<tl::types::User> {
-        let login_token = self.client.request_login_code(phone).await?;
+        let login_token = self.0.request_login_code(phone).await?;
         let code = code.await?;
-        let user = self.client.sign_in(&login_token, &code).await?;
+        let user = self.0.sign_in(&login_token, &code).await?;
         match user.raw {
             tl::enums::User::Empty(_) => bail!("sign in with empty user"),
             tl::enums::User::User(u) => Ok(u),
@@ -84,13 +79,13 @@ impl Scraper {
     ///
     /// 输入手机号, 给手机号的Tg客户端发送验证码，返回登录Token, 之后使用Token和验证码登录
     pub async fn request_login(&self, phone: &str) -> Result<LoginToken> {
-        let ret = self.client.request_login_code(phone).await?;
+        let ret = self.0.request_login_code(phone).await?;
         Ok(ret)
     }
 
     /// 确认登录
     pub async fn confirm_login(&self, login_token: LoginToken, code: &str) -> Result<()> {
-        self.client.sign_in(&login_token, code).await?;
+        self.0.sign_in(&login_token, code).await?;
         Ok(())
     }
 
@@ -98,7 +93,7 @@ impl Scraper {
     ///
     /// 退出登录
     pub async fn logout(self) -> Result<()> {
-        self.client.sign_out().await?;
+        self.0.sign_out().await?;
         Ok(())
     }
 
@@ -106,7 +101,7 @@ impl Scraper {
     ///
     /// 不需要重新登录
     pub async fn from_frozen(frozen: FrozenSession, api_config: &ApiConfig) -> Result<Self> {
-        let FrozenSession { uuid, data } = frozen;
+        let FrozenSession { data } = frozen;
         let ApiConfig { api_id, api_hash } = api_config.clone();
         let session = Session::load(&data)?;
 
@@ -118,7 +113,7 @@ impl Scraper {
         };
 
         let client = Client::connect(config).await?;
-        let ret = Self { uuid, client };
+        let ret = Self(client);
         Ok(ret)
     }
 
@@ -128,15 +123,14 @@ impl Scraper {
     /// 调用者要保证出口IP前后一致
     pub fn freeze(self) -> FrozenSession {
         FrozenSession {
-            uuid: self.uuid,
-            data: self.client.session().save(),
+            data: self.0.session().save(),
         }
     }
 }
 
 impl Scraper {
     pub async fn get_self(&self) -> Result<tl::types::User> {
-        let me = self.client.get_me().await?;
+        let me = self.0.get_me().await?;
         match me.raw {
             tl::enums::User::User(u) => Ok(u),
             tl::enums::User::Empty(_) => bail!("check failed, self is empty!"),
@@ -147,7 +141,7 @@ impl Scraper {
     pub async fn resolve_username(&self, username: &str) -> Result<PackedChat> {
         debug!("resolve username {}", username);
         let c = self
-            .client
+            .0
             .resolve_username(&username)
             .await?
             .ok_or(anyhow!("username not found"))?;
@@ -157,7 +151,7 @@ impl Scraper {
     /// https://core.telegram.org/api/invites#public-usernames
     pub async fn join_chat(&self, chat: PackedChat) -> Result<()> {
         let c = self
-            .client
+            .0
             .join_chat(chat)
             .await?
             .ok_or(anyhow!("chat not found"))?;
@@ -174,7 +168,7 @@ impl Scraper {
     // 仅接受私有链接
     pub async fn join_chat_link(&self, link: &str) -> Result<()> {
         let chat = self
-            .client
+            .0
             .accept_invite_link(link)
             .await?
             .ok_or(anyhow!("private chat not found"))?;
@@ -187,7 +181,7 @@ impl Scraper {
     }
 
     pub async fn list_chats(&self) -> Result<Vec<PackedChat>> {
-        let mut i = self.client.iter_dialogs();
+        let mut i = self.0.iter_dialogs();
         let mut ret = Vec::new();
         while let Some(dia) = i.next().await? {
             ret.push(dia.chat().pack());
@@ -210,7 +204,7 @@ impl Scraper {
             access_hash,
         });
         let ret = self
-            .client
+            .0
             .invoke(&tl::functions::users::GetFullUser { id: input_user })
             .await?;
         let tl::enums::users::UserFull::Full(ret) = ret;
@@ -232,7 +226,7 @@ impl Scraper {
             access_hash,
         });
         let ret = self
-            .client
+            .0
             .invoke(&tl::functions::channels::GetFullChannel {
                 channel: input_user,
             })
@@ -242,7 +236,7 @@ impl Scraper {
     }
 
     pub async fn quit_chat(&self, chat: PackedChat) -> Result<()> {
-        self.client.delete_dialog(chat).await?;
+        self.0.delete_dialog(chat).await?;
         Ok(())
     }
 }
@@ -258,7 +252,7 @@ pub struct HistoryConfig {
 }
 impl Scraper {
     pub fn iter_history(&self, config: HistoryConfig) -> Result<MessageIter> {
-        let ret = self.client.iter_messages(config.chat);
+        let ret = self.0.iter_messages(config.chat);
 
         let ret = if let Some(limit) = config.limit {
             ret.limit(limit)
@@ -316,7 +310,7 @@ impl Scraper {
         tx: mpsc::Sender<Result<Bytes>>,
     ) -> Result<()> {
         let media_ex = Media::from_raw(config.media).ok_or(anyhow!("unsupport media"))?;
-        let mut ret = self.client.iter_download(&media_ex);
+        let mut ret = self.0.iter_download(&media_ex);
         tokio::spawn(async move {
             loop {
                 match ret.next().await {

@@ -12,5 +12,4 @@ pub mod peer_participant;
 pub mod peer_people;
 pub mod user_account;
 pub mod user_chat;
-pub mod user_confirm;
 pub mod user_scraper;

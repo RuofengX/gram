@@ -1,5 +1,5 @@
-use crate::entity::{global_api_config, user_scraper};
 use anyhow::Result;
+use grammers_client::grammers_tl_types as tl;
 use sea_orm::FromJsonQueryResult;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -76,3 +76,27 @@ impl FrozenSession {
         Ok(Self::loads(&buf)?)
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct ChannelFull(tl::types::ChannelFull);
+impl Eq for ChannelFull {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct UserFull(tl::types::UserFull);
+impl Eq for UserFull {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct MessageMedia(tl::enums::MessageMedia);
+impl Eq for MessageMedia {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct FileType(tl::enums::storage::FileType);
+impl Eq for FileType {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct Message(tl::types::Message);
+impl Eq for Message {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct PackedChat(grammers_client::types::PackedChat);
+impl Eq for PackedChat {}

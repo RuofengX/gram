@@ -6,7 +6,8 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    scraper::{HistoryConfig, Scraper}, types::{ApiConfig, FrozenSession},
+    scraper::{HistoryConfig, Scraper},
+    types::{ApiConfig, FrozenSession},
 };
 
 pub struct Executor {

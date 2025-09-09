@@ -15,32 +15,18 @@ CREATE TABLE
         CONSTRAINT user_account_pkey PRIMARY KEY (id)
     );
 
--- 待输入确认码的用户会话
-CREATE TABLE
-    user_confirm (
-        id uuid NOT NULL DEFAULT gen_random_uuid (),
-        updated_at timestamptz NOT NULL DEFAULT now (),
-        account uuid NOT NULL,
-        login_hash text,
-        confirm_code text,
-        CONSTRAINT user_confirm_pkey PRIMARY KEY (id),
-        CONSTRAINT user_confirm_account_fkey FOREIGN KEY (account) REFERENCES user_account (id)
-    );
-
 -- 会话
 CREATE TABLE
     user_scraper (
         id uuid NOT NULL DEFAULT gen_random_uuid (),
         updated_at timestamptz NOT NULL DEFAULT now (),
         --
-        confirm uuid NOT NULL,
         api_config uuid NOT NULL,
         --
         frozen_session jsonb NOT NULL,
         in_use boolean NOT NULL DEFAULT false,
         --
         CONSTRAINT user_scraper_pkey PRIMARY KEY (id),
-        CONSTRAINT user_scraper_confirm_fkey FOREIGN KEY (confirm) REFERENCES user_confirm (id),
         CONSTRAINT user_scraper_global_api_config_fkey FOREIGN KEY (api_config) REFERENCES global_api_config (id)
     );
 

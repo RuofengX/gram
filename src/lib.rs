@@ -1,13 +1,13 @@
 use std::{io::BufRead, sync::Once};
 
+pub mod db;
+pub mod entity;
 pub mod executor;
 pub mod scraper;
 pub mod serve;
-pub mod types;
 pub mod stateless;
-pub mod entity;
-pub mod db;
 mod test;
+pub mod types;
 
 pub fn stdin_read_line(prompt: &'static str) -> tokio::sync::oneshot::Receiver<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
