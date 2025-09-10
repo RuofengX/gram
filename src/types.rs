@@ -14,6 +14,14 @@ pub struct ApiConfig {
     pub api_id: i32,
     pub api_hash: String,
 }
+impl From<(i32, &str)> for ApiConfig {
+    fn from(value: (i32, &str)) -> Self {
+        Self {
+            api_id: value.0,
+            api_hash: value.1.to_string(),
+        }
+    }
+}
 
 /// 冻结的会话
 ///
@@ -80,23 +88,58 @@ impl FrozenSession {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ChannelFull(tl::types::ChannelFull);
 impl Eq for ChannelFull {}
+impl From<tl::types::ChannelFull> for ChannelFull {
+    fn from(value: tl::types::ChannelFull) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct UserFull(tl::types::UserFull);
 impl Eq for UserFull {}
+impl From<tl::types::UserFull> for UserFull {
+    fn from(value: tl::types::UserFull) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct MessageMedia(tl::enums::MessageMedia);
 impl Eq for MessageMedia {}
+impl From<tl::enums::MessageMedia> for MessageMedia {
+    fn from(value: tl::enums::MessageMedia) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct FileType(tl::enums::storage::FileType);
 impl Eq for FileType {}
+impl From<tl::enums::storage::FileType> for FileType {
+    fn from(value: tl::enums::storage::FileType) -> Self {
+        Self(value)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct Message(tl::types::Message);
 impl Eq for Message {}
+impl From<tl::types::Message> for Message {
+    fn from(value: tl::types::Message) -> Self {
+        Self(value)
+    }
+}
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
-pub struct PackedChat(grammers_client::types::PackedChat);
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
+pub struct PackedChat(pub grammers_client::types::PackedChat);
 impl Eq for PackedChat {}
+impl From<grammers_client::types::PackedChat> for PackedChat {
+    fn from(value: grammers_client::types::PackedChat) -> Self {
+        Self(value)
+    }
+}
+impl Into<grammers_client::types::PackedChat> for PackedChat {
+    fn into(self) -> grammers_client::types::PackedChat {
+        self.0
+    }
+}

@@ -10,5 +10,4 @@ pub use super::peer_participant::Entity as PeerParticipant;
 pub use super::peer_people::Entity as PeerPeople;
 pub use super::user_account::Entity as UserAccount;
 pub use super::user_chat::Entity as UserChat;
-pub use super::user_confirm::Entity as UserConfirm;
 pub use super::user_scraper::Entity as UserScraper;

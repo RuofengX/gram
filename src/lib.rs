@@ -5,7 +5,6 @@ pub mod entity;
 pub mod executor;
 pub mod scraper;
 pub mod serve;
-pub mod stateless;
 mod test;
 pub mod types;
 

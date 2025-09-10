@@ -1,7 +1,7 @@
 use crate::{
     executor::Executor,
     scraper::{DownloadConfig, HistoryConfig},
-    types::FrozenSession,
+    types::{FrozenSession, PackedChat},
 };
 use anyhow::bail;
 use axum::{
@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
 };
 use axum_streams::StreamBodyAs;
-use grammers_client::{grammers_tl_types as tl, types::PackedChat};
+use grammers_client::grammers_tl_types as tl;
 use serde::Deserialize;
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::{mpsc, oneshot};
@@ -271,7 +271,7 @@ async fn fetch_msg(
                 Ok(Some(msg)) => {
                     info!(
                         "获取聊天({})消息: (id:{}, date:{}, text_len:{})",
-                        config.chat.id,
+                        config.chat.0.id,
                         msg.id(),
                         msg.date(),
                         msg.text().len(),
@@ -290,12 +290,12 @@ async fn fetch_msg(
                 Ok(None) => {
                     // tx自动drop之后rx.recv会收到None
                     // https://docs.rs/tokio/latest/tokio/sync/mpsc/struct.Receiver.html#method.recv
-                    info!("迭代聊天({})消息结束", config.chat.id);
+                    info!("迭代聊天({})消息结束", config.chat.0.id);
                     break;
                 }
                 // 获取失败
                 Err(e) => {
-                    warn!("迭代聊天({})消息错误: {}", config.chat.id, e);
+                    warn!("迭代聊天({})消息错误: {}", config.chat.0.id, e);
                     let _ = tx
                         .send(Err(axum::Error::new(e)))
                         .await

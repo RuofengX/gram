@@ -1,4 +1,4 @@
-use crate::types::{ApiConfig, FrozenSession};
+use crate::types::{ApiConfig, FrozenSession, PackedChat};
 use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
 use grammers_client::{
@@ -6,11 +6,11 @@ use grammers_client::{
     client::messages::MessageIter,
     grammers_tl_types::{self as tl},
     session::{self as session_tl, Session},
-    types::{LoginToken, Media, PackedChat},
+    types::{LoginToken, Media},
 };
 use serde::Deserialize;
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 
 const RETRY_POLICY: &'static dyn grammers_client::ReconnectionPolicy =
@@ -33,17 +33,28 @@ fn init_params() -> InitParams {
     params.reconnection_policy = RETRY_POLICY;
     params
 }
+
+pub async fn login_async(
+    api_config: ApiConfig,
+    phone: String,
+    code: oneshot::Receiver<String>,
+) -> Result<FrozenSession> {
+    let scraper = Scraper::login_async(&api_config, &phone, code).await?;
+    Ok(scraper.freeze())
+}
+
+pub async fn activate_frozen_with<R>(
+    api_config: ApiConfig,
+    frozen: FrozenSession,
+    with: impl Fn(&Scraper) -> Result<R>,
+) -> Result<R> {
+    let scraper = Scraper::from_frozen(frozen, &api_config).await?;
+    with(&scraper)
+}
+
 #[derive(Debug)]
-pub struct Scraper(Client);
-
-impl Scraper {
-    pub fn into_raw(self) -> Client {
-        self.0
-    }
-
-    /// 新建
-    ///
-    /// 新建一个会话, 需要登录才可使用
+pub struct Login(pub Client);
+impl Login {
     pub async fn new(api_config: &ApiConfig) -> Result<Self> {
         let session = session_tl::Session::new();
         let ApiConfig { api_id, api_hash } = api_config.clone();
@@ -60,23 +71,6 @@ impl Scraper {
 
     /// 请求登录
     ///
-    /// 输入手机号, 给手机号的Tg客户端发送验证码，之后从reader中读code并登录
-    pub async fn login_async(
-        &self,
-        phone: &str,
-        code: tokio::sync::oneshot::Receiver<String>,
-    ) -> Result<tl::types::User> {
-        let login_token = self.0.request_login_code(phone).await?;
-        let code = code.await?;
-        let user = self.0.sign_in(&login_token, &code).await?;
-        match user.raw {
-            tl::enums::User::Empty(_) => bail!("sign in with empty user"),
-            tl::enums::User::User(u) => Ok(u),
-        }
-    }
-
-    /// 请求登录
-    ///
     /// 输入手机号, 给手机号的Tg客户端发送验证码，返回登录Token, 之后使用Token和验证码登录
     pub async fn request_login(&self, phone: &str) -> Result<LoginToken> {
         let ret = self.0.request_login_code(phone).await?;
@@ -84,10 +78,38 @@ impl Scraper {
     }
 
     /// 确认登录
-    pub async fn confirm_login(&self, login_token: LoginToken, code: &str) -> Result<()> {
+    pub async fn confirm_login(self, login_token: LoginToken, code: &str) -> Result<Scraper> {
         self.0.sign_in(&login_token, code).await?;
-        Ok(())
+        Ok(Scraper(self.0))
     }
+}
+
+#[derive(Debug)]
+pub struct Scraper(Client);
+
+impl Scraper {
+    pub fn into_raw(self) -> Client {
+        self.0
+    }
+
+    /// 请求登录
+    ///
+    /// 输入手机号, 给手机号的Tg客户端发送验证码，之后从reader中读code并登录
+    pub async fn login_async(
+        api_config: &ApiConfig,
+        phone: &str,
+        code: tokio::sync::oneshot::Receiver<String>,
+    ) -> Result<Self> {
+        let ret = Login::new(api_config).await?;
+        let login_token = ret.0.request_login_code(phone).await?;
+        let code = code.await?;
+        let user = ret.0.sign_in(&login_token, &code).await?;
+        match user.raw {
+            tl::enums::User::Empty(_) => bail!("sign in with empty user"),
+            tl::enums::User::User(_u) => Ok(Self(ret.0)),
+        }
+    }
+
 
     /// 登出
     ///
@@ -145,11 +167,11 @@ impl Scraper {
             .resolve_username(&username)
             .await?
             .ok_or(anyhow!("username not found"))?;
-        Ok(c.pack())
+        Ok(c.pack().into())
     }
 
     /// https://core.telegram.org/api/invites#public-usernames
-    pub async fn join_chat(&self, chat: PackedChat) -> Result<()> {
+    pub async fn join_chat(&self, PackedChat(chat): PackedChat) -> Result<()> {
         let c = self
             .0
             .join_chat(chat)
@@ -160,7 +182,7 @@ impl Scraper {
     }
 
     pub async fn join_chat_name(&self, username: &str) -> Result<PackedChat> {
-        let chat = self.resolve_username(username).await?;
+        let chat = self.resolve_username(username).await?.into();
         self.join_chat(chat).await?;
         Ok(chat)
     }
@@ -184,7 +206,7 @@ impl Scraper {
         let mut i = self.0.iter_dialogs();
         let mut ret = Vec::new();
         while let Some(dia) = i.next().await? {
-            ret.push(dia.chat().pack());
+            ret.push(dia.chat().pack().into());
         }
 
         info!("list all chats/dialogs, {} items", ret.len());
@@ -192,7 +214,10 @@ impl Scraper {
         Ok(ret)
     }
 
-    pub async fn fetch_user_info(&self, user: PackedChat) -> Result<tl::types::users::UserFull> {
+    pub async fn fetch_user_info(
+        &self,
+        PackedChat(user): PackedChat,
+    ) -> Result<tl::types::users::UserFull> {
         if !user.is_user() {
             bail!("target chat not user");
         }
@@ -213,7 +238,7 @@ impl Scraper {
 
     pub async fn fetch_channel_info(
         &self,
-        channel: PackedChat,
+        PackedChat(channel): PackedChat,
     ) -> Result<tl::types::messages::ChatFull> {
         if !channel.is_channel() {
             bail!("target chat not channel");
@@ -235,7 +260,7 @@ impl Scraper {
         Ok(ret)
     }
 
-    pub async fn quit_chat(&self, chat: PackedChat) -> Result<()> {
+    pub async fn quit_chat(&self, PackedChat(chat): PackedChat) -> Result<()> {
         self.0.delete_dialog(chat).await?;
         Ok(())
     }

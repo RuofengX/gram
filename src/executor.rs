@@ -1,12 +1,12 @@
 use anyhow::{Result, anyhow};
 use dashmap::{DashMap, mapref::one::Ref};
 use grammers_client::{grammers_tl_types as tl, types::LoginToken};
-use tokio::sync::{mpsc, oneshot::Receiver};
+use tokio::sync::{mpsc, oneshot};
 use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    scraper::{HistoryConfig, Scraper},
+    scraper::{HistoryConfig, Login, Scraper},
     types::{ApiConfig, FrozenSession},
 };
 
@@ -16,7 +16,7 @@ pub struct Executor {
     /// 正在运行的
     scrapers: DashMap<Uuid, Scraper>,
     /// 等待验证码登录
-    logins: DashMap<Uuid, (Scraper, LoginToken)>,
+    logins: DashMap<Uuid, (Login, LoginToken)>,
 }
 impl Executor {
     pub fn new(api_config: ApiConfig) -> Self {
@@ -46,19 +46,19 @@ impl Executor {
     ///
     /// 返回请求ID
     pub async fn request_login(&self, phone: &str) -> Result<Uuid> {
-        let scraper = Scraper::new(&self.api_config).await?;
-        let login_token = scraper.request_login(phone).await?;
+        let login = Login::new(&self.api_config).await?;
+        let login_token = login.request_login(phone).await?;
 
         let uuid = Uuid::new_v4();
-        self.logins.insert(uuid, (scraper, login_token));
+        self.logins.insert(uuid, (login, login_token));
 
         Ok(uuid)
     }
     /// 使用登录请求ID+验证码登录
     pub async fn confirm_login(&self, login_id: Uuid, code: &str) -> Result<Uuid> {
-        let (uuid, (s, login_token)) =
+        let (uuid, (login, login_token)) =
             self.logins.remove(&login_id).ok_or(anyhow!("会话不存在"))?;
-        s.confirm_login(login_token, code).await?;
+        let s = login.confirm_login(login_token, code).await?;
         self.scrapers.insert(uuid, s);
         Ok(uuid)
     }
@@ -66,10 +66,12 @@ impl Executor {
     ///
     /// 创建所需的验证码通过异步通道接收，只需要一次调用+向通道发送验证码即可
     ///
-    pub async fn login_async(&self, phone: String, code: Receiver<String>) -> Result<Uuid> {
-        let scraper = Scraper::new(&self.api_config).await?;
-        scraper.login_async(&phone, code).await?;
-
+    pub async fn login_async(
+        &self,
+        phone: String,
+        code: oneshot::Receiver<String>,
+    ) -> Result<Uuid> {
+        let scraper = Scraper::login_async(&self.api_config, &phone, code).await?;
         let uuid = Uuid::new_v4();
         self.scrapers.insert(uuid, scraper);
 
@@ -117,7 +119,7 @@ impl Executor {
         let s = self.get_session(&session_id)?;
         let mut i = s.value().iter_history(config)?;
         tokio::spawn(async move {
-            warn!("start fetch message from chat({})", config.chat.id);
+            warn!("start fetch message from chat({})", config.chat.0.id);
             loop {
                 match i.next().await {
                     Ok(Some(msg)) => match writer.send(msg.raw).await {

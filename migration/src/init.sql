@@ -22,12 +22,14 @@ CREATE TABLE
         updated_at timestamptz NOT NULL DEFAULT now (),
         --
         api_config uuid NOT NULL,
+        account uuid NOT NULL,
         --
         frozen_session jsonb NOT NULL,
         in_use boolean NOT NULL DEFAULT false,
         --
         CONSTRAINT user_scraper_pkey PRIMARY KEY (id),
-        CONSTRAINT user_scraper_global_api_config_fkey FOREIGN KEY (api_config) REFERENCES global_api_config (id)
+        CONSTRAINT user_scraper_api_config_fkey FOREIGN KEY (api_config) REFERENCES global_api_config (id),
+        CONSTRAINT user_scraper_account_fkey FOREIGN KEY (account) REFERENCES user_account (id)
     );
 
 -- 用户聊天列表
