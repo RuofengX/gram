@@ -43,7 +43,7 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
 }
 
 pub async fn resume_scraper(db: &impl ConnectionTrait) -> Result<Option<Scraper>> {
-    info!("获取暂停会话");
+    info!("获取冻结会话");
     let ret = if let Some(scraper) = UserScraper::find()
         .filter(user_scraper::Column::InUse.eq(false))
         .one(db)

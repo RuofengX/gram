@@ -20,5 +20,9 @@ async fn main() -> Result<()> {
         s
     };
 
+    let ping_result = s.get_self().await?;
+
+    println!("{}", serde_json::to_string(&ping_result)?);
+
     Ok(())
 }
