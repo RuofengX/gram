@@ -1,3 +1,5 @@
+/// serve有状态服务的一部分
+
 use anyhow::{Result, anyhow};
 use dashmap::{DashMap, mapref::one::Ref};
 use grammers_client::{grammers_tl_types as tl, types::LoginToken};
@@ -46,7 +48,7 @@ impl Executor {
     ///
     /// 返回请求ID
     pub async fn request_login(&self, phone: &str) -> Result<Uuid> {
-        let login = Login::new(&self.api_config).await?;
+        let login = Login::new(self.api_config.clone()).await?;
         let login_token = login.request_login(phone).await?;
 
         let uuid = Uuid::new_v4();
@@ -71,7 +73,7 @@ impl Executor {
         phone: String,
         code: oneshot::Receiver<String>,
     ) -> Result<Uuid> {
-        let scraper = Scraper::login_async(&self.api_config, &phone, code).await?;
+        let scraper = Scraper::login_async(self.api_config.clone(), &phone, code).await?;
         let uuid = Uuid::new_v4();
         self.scrapers.insert(uuid, scraper);
 
@@ -81,7 +83,7 @@ impl Executor {
     /// 从冻结（离线保存）的会话中恢复, 返回会话ID
     pub async fn unfreeze(&self, id: Uuid, frozen: FrozenSession) -> Result<Uuid> {
         if !self.scrapers.contains_key(&id) {
-            let s = Scraper::from_frozen(frozen, &self.api_config).await?;
+            let s = Scraper::unfreeze(frozen, self.api_config.clone()).await?;
             self.scrapers.insert(id, s);
         }
         Ok(id)

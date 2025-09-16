@@ -7,8 +7,9 @@ pub mod scraper;
 pub mod serve;
 mod test;
 pub mod types;
+pub mod serveless;
 
-pub fn stdin_read_line(prompt: &'static str) -> tokio::sync::oneshot::Receiver<String> {
+pub fn stdin_read_line(prompt: String) -> tokio::sync::oneshot::Receiver<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     tokio::task::spawn_blocking(move || {
         let mut stdin = std::io::stdin().lock();

@@ -9,6 +9,8 @@ use std::{
 };
 use tracing::{info, trace};
 
+use crate::entity::global_api_config;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ApiConfig {
     pub api_id: i32,
@@ -20,6 +22,11 @@ impl From<(i32, &str)> for ApiConfig {
             api_id: value.0,
             api_hash: value.1.to_string(),
         }
+    }
+}
+impl From<global_api_config::Model> for ApiConfig {
+    fn from(value: global_api_config::Model) -> Self {
+        value.api_config
     }
 }
 

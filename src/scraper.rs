@@ -10,7 +10,7 @@ use grammers_client::{
 };
 use serde::Deserialize;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 const RETRY_POLICY: &'static dyn grammers_client::ReconnectionPolicy =
@@ -34,30 +34,12 @@ fn init_params() -> InitParams {
     params
 }
 
-pub async fn login_async(
-    api_config: ApiConfig,
-    phone: String,
-    code: oneshot::Receiver<String>,
-) -> Result<FrozenSession> {
-    let scraper = Scraper::login_async(&api_config, &phone, code).await?;
-    Ok(scraper.freeze())
-}
-
-pub async fn activate_frozen_with<R>(
-    api_config: ApiConfig,
-    frozen: FrozenSession,
-    with: impl Fn(&Scraper) -> Result<R>,
-) -> Result<R> {
-    let scraper = Scraper::from_frozen(frozen, &api_config).await?;
-    with(&scraper)
-}
-
 #[derive(Debug)]
 pub struct Login(pub Client);
 impl Login {
-    pub async fn new(api_config: &ApiConfig) -> Result<Self> {
+    pub async fn new(api_config: ApiConfig) -> Result<Self> {
         let session = session_tl::Session::new();
-        let ApiConfig { api_id, api_hash } = api_config.clone();
+        let ApiConfig { api_id, api_hash } = api_config;
         let config = Config {
             session,
             api_id,
@@ -96,7 +78,7 @@ impl Scraper {
     ///
     /// 输入手机号, 给手机号的Tg客户端发送验证码，之后从reader中读code并登录
     pub async fn login_async(
-        api_config: &ApiConfig,
+        api_config: ApiConfig,
         phone: &str,
         code: tokio::sync::oneshot::Receiver<String>,
     ) -> Result<Self> {
@@ -110,7 +92,6 @@ impl Scraper {
         }
     }
 
-
     /// 登出
     ///
     /// 退出登录
@@ -122,9 +103,9 @@ impl Scraper {
     /// 从冻结恢复
     ///
     /// 不需要重新登录
-    pub async fn from_frozen(frozen: FrozenSession, api_config: &ApiConfig) -> Result<Self> {
+    pub async fn unfreeze(frozen: FrozenSession, api_config: ApiConfig) -> Result<Self> {
         let FrozenSession { data } = frozen;
-        let ApiConfig { api_id, api_hash } = api_config.clone();
+        let ApiConfig { api_id, api_hash } = api_config;
         let session = Session::load(&data)?;
 
         let config = Config {
@@ -143,7 +124,7 @@ impl Scraper {
     ///
     /// 将session不退出保存, 下次不需要登录
     /// 调用者要保证出口IP前后一致
-    pub fn freeze(self) -> FrozenSession {
+    pub fn freeze(&self) -> FrozenSession {
         FrozenSession {
             data: self.0.session().save(),
         }
