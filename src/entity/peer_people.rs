@@ -11,9 +11,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
-    pub user_scraper: Option<Uuid>,
-    #[sea_orm(column_type = "Text")]
-    pub name: String,
+    pub people_id: i64,
     #[sea_orm(column_type = "JsonBinary", nullable)]
     pub full_info: Option<UserFull>,
 }
@@ -24,14 +22,6 @@ pub enum Relation {
     PeerHistory,
     #[sea_orm(has_many = "super::peer_participant::Entity")]
     PeerParticipant,
-    #[sea_orm(
-        belongs_to = "super::user_scraper::Entity",
-        from = "Column::UserScraper",
-        to = "super::user_scraper::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    UserScraper,
 }
 
 impl Related<super::peer_history::Entity> for Entity {
@@ -43,12 +33,6 @@ impl Related<super::peer_history::Entity> for Entity {
 impl Related<super::peer_participant::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PeerParticipant.def()
-    }
-}
-
-impl Related<super::user_scraper::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UserScraper.def()
     }
 }
 

@@ -1,21 +1,28 @@
 use crate::{
     entity::{
-        prelude::{GlobalApiConfig, UserAccount, UserScraper},
-        user_scraper,
+        esse_interest_channel, peer_channel, peer_people,
+        prelude::{EsseInterestChannel, GlobalApiConfig, UserAccount, UserChat, UserScraper},
+        user_chat, user_scraper,
     },
     scraper::Scraper,
     stdin_read_line,
-    types::{ApiConfig, FrozenSession},
+    types::{ApiConfig, FrozenSession, PackedChat},
 };
-use anyhow::Result;
 use anyhow::anyhow;
+use anyhow::{Result, bail};
+use chrono::{DateTime, Local};
 use sea_orm::{
     ActiveValue::{NotSet, Set},
-    Database, IntoActiveModel,
+    Condition, Database, IntoActiveModel, QueryOrder,
     prelude::*,
 };
 use tokio::sync::oneshot;
 use tracing::{debug, info, warn};
+
+fn now() -> DateTimeWithTimeZone {
+    let now_local: DateTime<Local> = Local::now();
+    now_local.with_timezone(&now_local.offset())
+}
 
 pub async fn login_async(
     api_config: ApiConfig,
@@ -42,7 +49,7 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
     Ok(db)
 }
 
-pub async fn resume_scraper(db: &impl ConnectionTrait) -> Result<Option<Scraper>> {
+pub async fn resume_scraper(db: &impl ConnectionTrait) -> Result<Option<(Uuid, Scraper)>> {
     info!("获取冻结会话");
     let ret = if let Some(scraper) = UserScraper::find()
         .filter(user_scraper::Column::InUse.eq(false))
@@ -65,9 +72,9 @@ pub async fn resume_scraper(db: &impl ConnectionTrait) -> Result<Option<Scraper>
         debug!("set db scraper state");
         let mut scraper = scraper.into_active_model();
         scraper.in_use = Set(true);
-        scraper.update(db).await?;
+        let id = scraper.update(db).await?.id;
 
-        Some(s)
+        Some((id, s))
     } else {
         warn!("未找到暂停的会话");
         None
@@ -108,7 +115,155 @@ pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uui
         in_use: Set(true),
         ..Default::default()
     };
-    let uuid = scraper_model.insert(db).await?.id;
+    let id = scraper_model.insert(db).await?.id;
 
-    Ok((uuid, scraper))
+    Ok((id, scraper))
+}
+
+pub async fn sync_chat(
+    db: &impl ConnectionTrait,
+    id: Uuid,
+    scraper: &Scraper,
+) -> Result<Vec<PackedChat>> {
+    info!("枚举当前聊天并发送到数据库");
+    let mut ret = Vec::new();
+    let mut user_chat_to_insert = Vec::new();
+    let mut peer_people_to_insert = Vec::new();
+    let mut peer_channel_to_insert = Vec::new();
+
+    for x in scraper.list_chats().await? {
+        ret.push(x.clone());
+        user_chat_to_insert.push(user_chat::ActiveModel {
+            user_scraper: Set(id),
+            packed_chat: Set(x),
+            ..Default::default()
+        });
+        if x.0.is_channel() {
+            peer_channel_to_insert.push(peer_channel::ActiveModel {
+                channel_id: Set(x.0.id),
+                ..Default::default()
+            });
+        }
+        if x.0.is_user() {
+            peer_people_to_insert.push(peer_people::ActiveModel {
+                people_id: Set(x.0.id),
+                ..Default::default()
+            });
+        }
+    }
+    // 将数据插入user_chat表
+    user_chat::Entity::insert_many(user_chat_to_insert)
+        .exec(db)
+        .await?;
+
+    // 将数据同步插入peer_channel和peer_people表中
+    {
+        peer_people::Entity::insert_many(peer_people_to_insert)
+            .exec(db)
+            .await?;
+        peer_channel::Entity::insert_many(peer_channel_to_insert)
+            .exec(db)
+            .await?;
+    }
+
+    Ok(ret)
+}
+
+pub async fn exit_scraper(db: &impl ConnectionTrait, id: Uuid, scraper: Scraper) -> Result<()> {
+    info!("退出爬虫，更新数据库状态");
+
+    debug!("freeze scraper instence");
+    let frozen = scraper.freeze();
+    let scraper_update = user_scraper::ActiveModel {
+        id: Set(id),
+        updated_at: Set(now()),
+        api_config: NotSet,
+        account: NotSet,
+        frozen_session: Set(frozen),
+        in_use: Set(false),
+    };
+    debug!("update scraper in db");
+    scraper_update.update(db).await?;
+    Ok(())
+}
+
+pub async fn resolve_username(
+    db: &impl ConnectionTrait,
+    id: Uuid,
+    scraper: &Scraper,
+    username: &str,
+) -> Result<Option<PackedChat>> {
+    // 查询user_chat作为缓存返回
+    if let Some(chat) = UserChat::find()
+        .filter(
+            Condition::all()
+                .add(user_chat::Column::Username.eq(username))
+                .add(user_chat::Column::UserScraper.eq(id)),
+        )
+        .one(db)
+        .await?
+    {
+        return Ok(Some(chat.packed_chat));
+    }
+
+    let chat = if let Some(chat) = scraper.resolve_username(&username).await? {
+        chat
+    } else {
+        return Ok(None);
+    };
+
+    // 存入user_chat
+    user_chat::ActiveModel {
+        user_scraper: Set(id),
+        username: Set(Some(username.to_string())),
+        packed_chat: Set(chat),
+        ..Default::default()
+    }
+    .insert(db)
+    .await?;
+
+    // 同步到peer系列库中
+    if chat.0.is_user() {
+        peer_people::ActiveModel {
+            people_id: Set(chat.0.id),
+            ..Default::default()
+        }
+        .insert(db)
+        .await?;
+    }
+    if chat.0.is_channel() {
+        peer_channel::ActiveModel {
+            channel_id: Set(chat.0.id),
+            ..Default::default()
+        }
+        .insert(db)
+        .await?;
+    }
+
+    Ok(Some(chat))
+}
+
+pub async fn get_stale_esse_channel(
+    db: &impl ConnectionTrait,
+    id: Uuid,
+    scraper: &Scraper,
+) -> Result<PackedChat> {
+    // 循环直到找到最老的esse对应的packed_chat
+    loop {
+        let stale_esse = EsseInterestChannel::find()
+            .order_by_asc(esse_interest_channel::Column::UpdatedAt)
+            .one(db)
+            .await?
+            .ok_or(anyhow!("esse channel not found"))?;
+        if let Some(chat) = resolve_username(db, id, scraper, &stale_esse.name).await? {
+            return Ok(chat)
+        } else {
+            warn!("聊天{}未找到, 删除该条目", { stale_esse.name });
+            EsseInterestChannel::delete_by_id(stale_esse.id)
+                .exec(db)
+                .await?;
+            continue
+        };
+
+    }
 }

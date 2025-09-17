@@ -38,6 +38,7 @@ CREATE TABLE
         id uuid NOT NULL DEFAULT gen_random_uuid (),
         updated_at timestamptz NOT NULL DEFAULT now (),
         user_scraper uuid NOT NULL,
+        username text, -- 存在不暴露用户名的聊天对象
         packed_chat jsonb NOT NULL,
         CONSTRAINT user_chat_pkey PRIMARY KEY (id),
         CONSTRAINT user_chat_user_scraper_fkey FOREIGN KEY (user_scraper) REFERENCES user_scraper (id)
@@ -54,11 +55,9 @@ CREATE TABLE
     peer_channel (
         id uuid NOT NULL DEFAULT gen_random_uuid (),
         updated_at timestamptz NOT NULL DEFAULT now (),
-        user_scraper uuid,
-        name text NOT NULL,
+        channel_id int8 NOT NULL,
         full_info jsonb,
-        CONSTRAINT peer_channel_pkey PRIMARY KEY (id),
-        CONSTRAINT peer_channel_user_scraper_fkey FOREIGN KEY (user_scraper) REFERENCES user_scraper (id)
+        CONSTRAINT peer_channel_pkey PRIMARY KEY (id)
     );
 
 /* 对端数据库中的用户信息
@@ -72,11 +71,9 @@ CREATE TABLE
     peer_people (
         id uuid NOT NULL DEFAULT gen_random_uuid (),
         updated_at timestamptz NOT NULL DEFAULT now (),
-        user_scraper uuid,
-        name text NOT NULL,
+        people_id int8 NOT NULL,
         full_info jsonb,
-        CONSTRAINT peer_people_pkey PRIMARY KEY (id),
-        CONSTRAINT peer_people_user_scraper_fkey FOREIGN KEY (user_scraper) REFERENCES user_scraper (id)
+        CONSTRAINT peer_people_pkey PRIMARY KEY (id)
     );
 
 -- 用户和群组的关系
@@ -172,12 +169,6 @@ CREATE TABLE
     esse_interest_channel (
         id uuid NOT NULL DEFAULT gen_random_uuid (),
         updated_at timestamptz NOT NULL DEFAULT now (),
-        name text,
-        channel uuid,
-        CONSTRAINT esse_interest_channel_pkey PRIMARY KEY (id),
-        CONSTRAINT esse_interest_channel_channel_fkey FOREIGN KEY (channel) REFERENCES peer_channel (id),
-        CHECK (
-            name IS NOT NULL
-            OR channel IS NOT NULL
-        )
+        username text NOT NULL,
+        CONSTRAINT esse_interest_channel_pkey PRIMARY KEY (id)
     );

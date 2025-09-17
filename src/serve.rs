@@ -3,7 +3,7 @@ use crate::{
     scraper::{DownloadConfig, HistoryConfig},
     types::{FrozenSession, PackedChat},
 };
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use axum::{
     Json, Router,
     body::Body,
@@ -224,7 +224,8 @@ async fn resolve_username(
         .get_session(&session_id)?
         .value()
         .resolve_username(&username)
-        .await?;
+        .await?
+        .ok_or(anyhow!("user not fount"))?;
     Ok(Json(ret))
 }
 

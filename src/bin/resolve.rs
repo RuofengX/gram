@@ -20,15 +20,9 @@ async fn main() -> Result<()> {
     };
     warn!("会话UUID: {}", id);
 
-    warn!("同步聊天列表");
-    let chat_list = serveless::sync_chat(&db, id, &s).await?;
-    for c in chat_list {
-        info!("{}", serde_json::to_string(&c)?);
-    }
+    let result = serveless::resolve_username(&db, id, &s, "mianbeitongjiling").await?;
 
-    warn!("遍历最老ESSE群组");
-    let stale = serveless::get_stale_esse_channel(&db, id, &s).await?;
-    println!("{:?}", stale);
+    println!("{:?}", result);
 
     warn!("退出会话");
     serveless::exit_scraper(&db, id, s).await?;

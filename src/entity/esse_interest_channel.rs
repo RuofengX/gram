@@ -9,27 +9,12 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub name: Option<String>,
-    pub channel: Option<Uuid>,
+    #[sea_orm(column_type = "Text")]
+    pub username: String,
+    pub name: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::peer_channel::Entity",
-        from = "Column::Channel",
-        to = "super::peer_channel::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    PeerChannel,
-}
-
-impl Related<super::peer_channel::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::PeerChannel.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

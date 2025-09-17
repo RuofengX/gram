@@ -28,16 +28,12 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     GlobalApiConfig,
-    #[sea_orm(has_many = "super::peer_channel::Entity")]
-    PeerChannel,
     #[sea_orm(has_many = "super::peer_file_part::Entity")]
     PeerFilePart,
     #[sea_orm(has_many = "super::peer_history::Entity")]
     PeerHistory,
     #[sea_orm(has_many = "super::peer_media::Entity")]
     PeerMedia,
-    #[sea_orm(has_many = "super::peer_people::Entity")]
-    PeerPeople,
     #[sea_orm(
         belongs_to = "super::user_account::Entity",
         from = "Column::Account",
@@ -56,12 +52,6 @@ impl Related<super::global_api_config::Entity> for Entity {
     }
 }
 
-impl Related<super::peer_channel::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::PeerChannel.def()
-    }
-}
-
 impl Related<super::peer_file_part::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PeerFilePart.def()
@@ -77,12 +67,6 @@ impl Related<super::peer_history::Entity> for Entity {
 impl Related<super::peer_media::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PeerMedia.def()
-    }
-}
-
-impl Related<super::peer_people::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::PeerPeople.def()
     }
 }
 

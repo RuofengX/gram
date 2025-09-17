@@ -12,6 +12,8 @@ pub struct Model {
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
     pub user_scraper: Uuid,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub username: Option<String>, // 存在无用户名的聊天
     #[sea_orm(column_type = "JsonBinary")]
     pub packed_chat: PackedChat,
 }

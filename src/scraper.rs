@@ -141,14 +141,11 @@ impl Scraper {
     }
 
     /// https://core.telegram.org/method/contacts.resolveUsername
-    pub async fn resolve_username(&self, username: &str) -> Result<PackedChat> {
+    pub async fn resolve_username(&self, username: &str) -> Result<Option<PackedChat>> {
         debug!("resolve username {}", username);
-        let c = self
-            .0
-            .resolve_username(&username)
-            .await?
-            .ok_or(anyhow!("username not found"))?;
-        Ok(c.pack().into())
+        let c = self.0.resolve_username(&username).await?;
+        // .ok_or(anyhow!("username not found"))?;
+        Ok(c.map(|x| x.pack().into()))
     }
 
     /// https://core.telegram.org/api/invites#public-usernames
@@ -162,10 +159,14 @@ impl Scraper {
         Ok(())
     }
 
-    pub async fn join_chat_name(&self, username: &str) -> Result<PackedChat> {
-        let chat = self.resolve_username(username).await?.into();
+    pub async fn join_chat_name(&self, username: &str) -> Result<Option<PackedChat>> {
+        let chat = if let Some(chat) = self.resolve_username(username).await? {
+            chat
+        } else {
+            return Ok(None);
+        };
         self.join_chat(chat).await?;
-        Ok(chat)
+        Ok(Some(chat))
     }
 
     // 仅接受私有链接
