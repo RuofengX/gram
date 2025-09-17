@@ -8,8 +8,8 @@ use crate::{
     stdin_read_line,
     types::{ApiConfig, FrozenSession, PackedChat},
 };
+use anyhow::Result;
 use anyhow::anyhow;
-use anyhow::{Result, bail};
 use chrono::{DateTime, Local};
 use sea_orm::{
     ActiveValue::{NotSet, Set},
@@ -43,6 +43,7 @@ pub async fn unfreeze_and<R>(
 }
 
 pub async fn connect_db() -> Result<DatabaseConnection> {
+    warn!("连接到数据库");
     dotenv::dotenv().unwrap();
     let url = dotenv::var("DATABASE_URL".to_owned())?;
     let db = Database::connect(url).await?;
@@ -131,22 +132,23 @@ pub async fn sync_chat(
     let mut peer_people_to_insert = Vec::new();
     let mut peer_channel_to_insert = Vec::new();
 
-    for x in scraper.list_chats().await? {
-        ret.push(x.clone());
+    for (username, chat) in scraper.list_chats_with_username().await? {
+        ret.push(chat.clone());
         user_chat_to_insert.push(user_chat::ActiveModel {
             user_scraper: Set(id),
-            packed_chat: Set(x),
+            packed_chat: Set(chat),
+            username: Set(username),
             ..Default::default()
         });
-        if x.0.is_channel() {
+        if chat.0.is_channel() {
             peer_channel_to_insert.push(peer_channel::ActiveModel {
-                channel_id: Set(x.0.id),
+                channel_id: Set(chat.0.id),
                 ..Default::default()
             });
         }
-        if x.0.is_user() {
+        if chat.0.is_user() {
             peer_people_to_insert.push(peer_people::ActiveModel {
-                people_id: Set(x.0.id),
+                people_id: Set(chat.0.id),
                 ..Default::default()
             });
         }
@@ -255,15 +257,16 @@ pub async fn get_stale_esse_channel(
             .one(db)
             .await?
             .ok_or(anyhow!("esse channel not found"))?;
-        if let Some(chat) = resolve_username(db, id, scraper, &stale_esse.name).await? {
-            return Ok(chat)
+        if let Some(chat) = resolve_username(db, id, scraper, &stale_esse.username).await? {
+            return Ok(chat);
         } else {
-            warn!("聊天{}未找到, 删除该条目", { stale_esse.name });
+            warn!("聊天{}未找到, 删除该条目", {
+                stale_esse.username
+            });
             EsseInterestChannel::delete_by_id(stale_esse.id)
                 .exec(db)
                 .await?;
-            continue
+            continue;
         };
-
     }
 }

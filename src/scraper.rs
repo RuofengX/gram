@@ -196,6 +196,20 @@ impl Scraper {
         Ok(ret)
     }
 
+    pub async fn list_chats_with_username(&self) -> Result<Vec<(Option<String>, PackedChat)>> {
+        let mut i = self.0.iter_dialogs();
+        let mut ret = Vec::new();
+        while let Some(dia) = i.next().await? {
+            let username = dia.chat().username().map(|x| x.to_string());
+            let chat = dia.chat().pack().into();
+            ret.push((username, chat));
+        }
+
+        info!("list all chats/dialogs, {} items", ret.len());
+
+        Ok(ret)
+    }
+
     pub async fn fetch_user_info(
         &self,
         PackedChat(user): PackedChat,

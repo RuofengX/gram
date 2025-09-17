@@ -11,7 +11,6 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
     #[sea_orm(column_type = "Text")]
     pub username: String,
-    pub name: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
