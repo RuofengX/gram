@@ -109,6 +109,7 @@ CREATE TABLE
         user_scraper uuid NOT NULL,
         user_chat uuid NOT NULL,
         --
+        chat_id int8 NOT NULL, -- 聊天id
         history_id int4 NOT NULL, -- 聊天中的消息编号
         message jsonb NOT NULL, -- 参考`grammers_tl_types::enums::messages::Messages`
         --

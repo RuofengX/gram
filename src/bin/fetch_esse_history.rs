@@ -1,7 +1,7 @@
 use anyhow::Result;
 use gram::{scraper::Scraper, serveless};
 use sea_orm::{ConnectionTrait, TransactionTrait};
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 include!("../../.config.rs");
@@ -36,12 +36,6 @@ async fn run(
     scraper_id: Uuid,
     scraper: &Scraper,
 ) -> Result<()> {
-    warn!("同步聊天列表");
-    let chat_list = serveless::sync_chat(db, scraper_id, scraper).await?;
-    for c in chat_list {
-        info!("{}", serde_json::to_string(&c)?);
-    }
-
     warn!("遍历最老ESSE群组");
     let chat_id = serveless::get_stale_esse_channel(db, scraper_id, scraper).await?;
     println!("{:?}", chat_id);

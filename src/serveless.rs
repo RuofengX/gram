@@ -128,45 +128,6 @@ pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uui
     Ok((id, scraper))
 }
 
-pub async fn sync_chat(
-    db: &impl TransactionTrait,
-    scraper_id: Uuid,
-    scraper: &Scraper,
-) -> Result<Vec<PackedChat>> {
-    info!("枚举当前聊天并同步到数据库");
-    let trans = db.begin().await?;
-
-    let mut ret = Vec::new();
-    let mut user_chat_to_insert = Vec::new();
-
-    let exist_chat = UserChat::find()
-        .filter(user_chat::Column::UserScraper.eq(scraper_id))
-        .all(&trans)
-        .await?;
-
-    let exist_chat_id:Vec<i64> = exist_chat.iter()
-        .map(|x|x.packed_chat.0.id).collect();
-
-    for (username, chat) in scraper.list_chats_with_username().await? {
-        ret.push(chat.clone());
-        user_chat_to_insert.push(user_chat::ActiveModel {
-            user_scraper: Set(scraper_id),
-            packed_chat: Set(chat),
-            username: Set(username),
-            joined: Set(true),
-            ..Default::default()
-        });
-    }
-    // 将数据插入user_chat表
-    user_chat::Entity::insert_many(user_chat_to_insert)
-        .exec(db)
-        .await?;
-
-    trans.commit().await?
-
-    Ok(ret)
-}
-
 pub async fn exit_scraper(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
@@ -189,6 +150,11 @@ pub async fn exit_scraper(
     Ok(())
 }
 
+/// 将用户名解析为packe_chat并存入数据库, 返回数据库条目的uuid
+///
+/// 函数会自动查询同scraper之前解析的缓存, 减少FLOOD
+///
+/// 如任何方式都无法解析用户名, 则返回Ok(None)
 pub async fn resolve_username(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
@@ -233,6 +199,9 @@ pub async fn resolve_username(
     Ok(Some(chat))
 }
 
+/// 获取最久未更新的esse频道在user_chat表中的uuid
+///
+/// 函数内部由[`resolve_username`]保证缓存充分利用
 pub async fn get_stale_esse_channel(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
@@ -244,7 +213,7 @@ pub async fn get_stale_esse_channel(
             .order_by_asc(esse_interest_channel::Column::UpdatedAt) // 时间的ASCending顺序排序第一个就是最老的
             .one(db)
             .await?
-            .ok_or(anyhow!("esse channel not found"))?;
+            .ok_or(anyhow!("esse table empty"))?;
         if let Some(chat) = resolve_username(db, scraper_id, scraper, &stale_esse.username).await? {
             debug!("update db");
             // 更新时间数值作为stale的参考, 让每次stale的结果都是最老的
@@ -264,6 +233,7 @@ pub async fn get_stale_esse_channel(
     }
 }
 
+/// 同步频道历史
 pub async fn sync_channel_history(
     db: &(impl ConnectionTrait + TransactionTrait),
     scraper_id: Uuid,
@@ -288,8 +258,7 @@ pub async fn sync_channel_history(
 
     debug!("start expand history");
     loop {
-        let (total, new) =
-            history::expend_history(db, scraper_id, &scraper, chat_id, chat, 100).await?;
+        let (total, new) = history::expend_history(db, scraper_id, &scraper, chat_id, chat).await?;
         warn!("频道: {} - 总:{}/增:{}", chat_id, total, new);
         if new == 0 {
             break;
@@ -350,6 +319,7 @@ async fn quit_channel(
     scraper: &Scraper,
     chat_id: Uuid,
 ) -> Result<()> {
+    info!("退出群组");
     debug!("transaction start");
     let trans = db.begin().await?;
 
@@ -365,8 +335,6 @@ async fn quit_channel(
         return Ok(());
     }
 
-    // 退出群组
-    debug!("quit channel");
     scraper.quit_chat(chat.packed_chat).await?;
 
     debug!("update db");

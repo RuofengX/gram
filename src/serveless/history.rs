@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use sea_orm::{
-    ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, TransactionTrait,
 };
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
@@ -22,11 +22,10 @@ pub async fn expend_history(
     scraper: &Scraper,
     chat_id: Uuid,
     packed_chat: PackedChat,
-    chunk_size: usize,
 ) -> Result<(usize, usize)> {
     let trans = db.begin().await?;
     let mut total = PeerHistory::find()
-        .filter(Condition::all().add(peer_history::Column::UserChat.eq(chat_id)))
+        .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
         .count(&trans)
         .await? as usize;
     if total == 0 {
@@ -39,29 +38,17 @@ pub async fn expend_history(
             packed_chat,
             Some(100),
             None,
+            None,
         )
         .await?;
     }
 
     let (old, new) = tokio::try_join!(
-        expand_oldest(
-            &trans,
-            scraper_id,
-            &scraper,
-            chat_id,
-            packed_chat,
-            chunk_size
-        ),
-        expand_latest(
-            &trans,
-            scraper_id,
-            &scraper,
-            chat_id,
-            packed_chat,
-            chunk_size
-        ),
+        expand_oldest(&trans, scraper_id, &scraper, chat_id, packed_chat, 500),
+        expand_latest(&trans, scraper_id, &scraper, chat_id, packed_chat, 10),
     )?;
 
+    debug!("commit transaction");
     trans.commit().await?;
 
     Ok((total + old + new, old + new))
@@ -82,7 +69,7 @@ async fn expand_latest(
     // 获取最新的history_id
     debug!("get latest history_id from db");
     let history = PeerHistory::find()
-        .filter(peer_history::Column::UserChat.eq(chat_id))
+        .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
         .order_by_desc(peer_history::Column::HistoryId) // 降序就是最新的
         .one(db)
         .await?
@@ -105,6 +92,7 @@ async fn expand_latest(
         packed_chat,
         Some(chunk_size),
         Some(start_offset),
+        Some(history.history_id),
     )
     .await?;
 
@@ -125,7 +113,7 @@ async fn expand_oldest(
     // 获取最老的history_id
     debug!("get latest history_id from db");
     let history = PeerHistory::find()
-        .filter(peer_history::Column::UserChat.eq(chat_id))
+        .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
         .order_by_asc(peer_history::Column::HistoryId) // 升序就是最老的
         .one(db)
         .await?
@@ -134,7 +122,8 @@ async fn expand_oldest(
         ))?;
 
     // 将开始消息ID向前偏移一个chunk
-    let start_offset = history.history_id - chunk_size as i32;
+    let start_offset = (history.history_id - chunk_size as i32).max(0);
+
     debug!(
         "start offset {} - {} = {}",
         history.history_id, chunk_size, start_offset
@@ -148,12 +137,17 @@ async fn expand_oldest(
         packed_chat,
         Some(chunk_size),
         Some(start_offset),
+        None,
     )
     .await?;
 
     Ok(count)
 }
 
+/// 从api获取chat的聊天记录
+///
+/// 如果设置了max_limit, 则将请求小于该参数的记录  
+/// 如果设置了min_limit, 则所有不大于该参数的记录将被丢弃
 #[instrument(level = "debug", skip(db, scraper, packed_chat))]
 async fn fetch(
     db: &impl ConnectionTrait,
@@ -162,17 +156,30 @@ async fn fetch(
     chat_id: Uuid,
     packed_chat: PackedChat,
     limit: Option<usize>,
-    offset_id: Option<i32>,
+    max_limit: Option<i32>,
+    min_limit: Option<i32>,
 ) -> Result<usize> {
+    if max_limit == Some(0){
+        return Ok(0)
+    }
+
+    let packed_chat_id = packed_chat.0.id;
     let mut iter = scraper.iter_history(HistoryConfig {
         chat: packed_chat,
         limit: limit,
         offset_date: None,
-        offset_id: offset_id,
+        offset_id: max_limit,
     })?;
     let mut history_to_insert = Vec::new();
 
     while let Some(msg) = iter.next().await? {
+        if let Some(min_limit) = min_limit {
+            if msg.id() <= min_limit {
+                // 丢弃
+                debug!("drop msg({}) for min_limit({})", msg.id(), min_limit);
+                continue;
+            }
+        }
         info!(
             "获取: ({}): {}",
             msg.id(),
@@ -185,6 +192,7 @@ async fn fetch(
         let model = peer_history::ActiveModel {
             user_scraper: Set(scraper_id),
             user_chat: Set(chat_id),
+            chat_id: Set(packed_chat_id),
             history_id: Set(msg.id()),
             message: Set(msg.raw.into()),
             ..Default::default()
@@ -195,7 +203,9 @@ async fn fetch(
     let count = history_to_insert.len();
 
     debug!("insert {} history", count);
-    PeerHistory::insert_many(history_to_insert).exec(db).await?;
+    if count > 0 {
+        PeerHistory::insert_many(history_to_insert).exec(db).await?;
+    }
 
     Ok(count)
 }

@@ -13,6 +13,7 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
     pub user_scraper: Uuid,
     pub user_chat: Uuid,
+    pub chat_id: i64,
     pub history_id: i32,
     #[sea_orm(column_type = "JsonBinary")]
     pub message: Message,
