@@ -271,11 +271,8 @@ pub async fn sync_channel_history(
                 .await?;
         all += old + new;
         warn!(
-            "迭代: 频道({}) - 总:{}/历史:{}/更新:{}",
-            chat.0.id,
-            total + old + new,
-            old,
-            new
+            "迭代: 频道({}) - 原:{}/历史:{}/更新:{}",
+            chat.0.id, total, old, new
         );
         match (old, new) {
             (0, 0) => break, // 历史迭代完毕, 期间前向没有新增, 直接退出

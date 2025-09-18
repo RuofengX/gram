@@ -4,3 +4,4 @@ session.json
 *.session
 .env
 .idea/
+.DS_Store
