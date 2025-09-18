@@ -2,12 +2,11 @@
 
 pub use super::esse_interest_channel::Entity as EsseInterestChannel;
 pub use super::global_api_config::Entity as GlobalApiConfig;
-pub use super::peer_channel::Entity as PeerChannel;
 pub use super::peer_file_part::Entity as PeerFilePart;
 pub use super::peer_history::Entity as PeerHistory;
 pub use super::peer_media::Entity as PeerMedia;
 pub use super::peer_participant::Entity as PeerParticipant;
-pub use super::peer_people::Entity as PeerPeople;
 pub use super::user_account::Entity as UserAccount;
 pub use super::user_chat::Entity as UserChat;
 pub use super::user_scraper::Entity as UserScraper;
+pub use super::v_user_chat_with_id::Entity as VUserChatWithId;

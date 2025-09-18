@@ -3,33 +3,25 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::types::Message;
+use crate::types::PackedChat;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "peer_history")]
+#[sea_orm(table_name = "v_user_chat_with_id")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
     pub user_scraper: Uuid,
-    pub user_chat: Uuid,
-    pub history_id: i32,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub username: Option<String>, // 存在无用户名的聊天, 用户没有设置即无用户名
     #[sea_orm(column_type = "JsonBinary")]
-    pub message: Message,
+    pub packed_chat: PackedChat,
+    pub chat_id: i64,
+    pub joined: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::user_chat::Entity",
-        from = "Column::UserChat",
-        to = "super::user_chat::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    UserChat,
-    #[sea_orm(has_many = "super::peer_media::Entity")]
-    PeerMedia,
     #[sea_orm(
         belongs_to = "super::user_scraper::Entity",
         from = "Column::UserScraper",
@@ -38,18 +30,6 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     UserScraper,
-}
-
-impl Related<super::user_chat::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UserChat.def()
-    }
-}
-
-impl Related<super::peer_media::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::PeerMedia.def()
-    }
 }
 
 impl Related<super::user_scraper::Entity> for Entity {

@@ -4,9 +4,9 @@ use bytes::Bytes;
 use grammers_client::{
     Client, Config, InitParams,
     client::messages::MessageIter,
-    grammers_tl_types::{self as tl},
+    grammers_tl_types as tl,
     session::{self as session_tl, Session},
-    types::{LoginToken, Media},
+    types::{Chat, LoginToken, Media},
 };
 use serde::Deserialize;
 use std::time::Duration;
@@ -149,24 +149,23 @@ impl Scraper {
     }
 
     /// https://core.telegram.org/api/invites#public-usernames
-    pub async fn join_chat(&self, PackedChat(chat): PackedChat) -> Result<()> {
-        let c = self
-            .0
-            .join_chat(chat)
-            .await?
-            .ok_or(anyhow!("chat not found"))?;
-        info!("joined chat: [{}]({})", c.name().unwrap_or("-"), c.id());
-        Ok(())
+    pub async fn join_chat(&self, PackedChat(chat): PackedChat) -> Result<Option<Chat>> {
+        if let Some(c) = self.0.join_chat(chat).await? {
+            debug!("joined chat: [{}]({})", c.name().unwrap_or("-"), c.id());
+            Ok(Some(c))
+        } else {
+            debug!("chat ({}) not found", chat.id);
+            Ok(None)
+        }
     }
 
-    pub async fn join_chat_name(&self, username: &str) -> Result<Option<PackedChat>> {
-        let chat = if let Some(chat) = self.resolve_username(username).await? {
-            chat
+    pub async fn join_chat_name(&self, username: &str) -> Result<Option<Chat>> {
+        if let Some(c) = self.resolve_username(username).await? {
+            let c = self.join_chat(c).await?;
+            Ok(c)
         } else {
-            return Ok(None);
-        };
-        self.join_chat(chat).await?;
-        Ok(Some(chat))
+            Ok(None)
+        }
     }
 
     // 仅接受私有链接

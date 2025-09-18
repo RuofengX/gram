@@ -1,10 +1,13 @@
 use crate::{
     entity::{
-        esse_interest_channel, peer_channel, peer_people,
-        prelude::{EsseInterestChannel, GlobalApiConfig, UserAccount, UserChat, UserScraper},
+        esse_interest_channel, peer_history,
+        prelude::{
+            EsseInterestChannel, GlobalApiConfig, UserAccount, UserChat, UserScraper,
+            VUserChatWithId,
+        },
         user_chat, user_scraper,
     },
-    scraper::Scraper,
+    scraper::{HistoryConfig, Scraper},
     stdin_read_line,
     types::{ApiConfig, FrozenSession, PackedChat},
 };
@@ -13,7 +16,7 @@ use anyhow::anyhow;
 use chrono::{DateTime, Local};
 use sea_orm::{
     ActiveValue::{NotSet, Set},
-    Condition, Database, IntoActiveModel, QueryOrder,
+    Condition, Database, IntoActiveModel, QueryOrder, TransactionTrait,
     prelude::*,
 };
 use tokio::sync::oneshot;
@@ -123,61 +126,41 @@ pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uui
 
 pub async fn sync_chat(
     db: &impl ConnectionTrait,
-    id: Uuid,
+    scraper_id: Uuid,
     scraper: &Scraper,
 ) -> Result<Vec<PackedChat>> {
     info!("枚举当前聊天并发送到数据库");
     let mut ret = Vec::new();
     let mut user_chat_to_insert = Vec::new();
-    let mut peer_people_to_insert = Vec::new();
-    let mut peer_channel_to_insert = Vec::new();
 
     for (username, chat) in scraper.list_chats_with_username().await? {
         ret.push(chat.clone());
         user_chat_to_insert.push(user_chat::ActiveModel {
-            user_scraper: Set(id),
+            user_scraper: Set(scraper_id),
             packed_chat: Set(chat),
             username: Set(username),
             ..Default::default()
         });
-        if chat.0.is_channel() {
-            peer_channel_to_insert.push(peer_channel::ActiveModel {
-                channel_id: Set(chat.0.id),
-                ..Default::default()
-            });
-        }
-        if chat.0.is_user() {
-            peer_people_to_insert.push(peer_people::ActiveModel {
-                people_id: Set(chat.0.id),
-                ..Default::default()
-            });
-        }
     }
     // 将数据插入user_chat表
     user_chat::Entity::insert_many(user_chat_to_insert)
         .exec(db)
         .await?;
 
-    // 将数据同步插入peer_channel和peer_people表中
-    {
-        peer_people::Entity::insert_many(peer_people_to_insert)
-            .exec(db)
-            .await?;
-        peer_channel::Entity::insert_many(peer_channel_to_insert)
-            .exec(db)
-            .await?;
-    }
-
     Ok(ret)
 }
 
-pub async fn exit_scraper(db: &impl ConnectionTrait, id: Uuid, scraper: Scraper) -> Result<()> {
+pub async fn exit_scraper(
+    db: &impl ConnectionTrait,
+    scraper_id: Uuid,
+    scraper: Scraper,
+) -> Result<()> {
     info!("退出爬虫，更新数据库状态");
 
     debug!("freeze scraper instence");
     let frozen = scraper.freeze();
     let scraper_update = user_scraper::ActiveModel {
-        id: Set(id),
+        id: Set(scraper_id),
         updated_at: Set(now()),
         api_config: NotSet,
         account: NotSet,
@@ -191,73 +174,66 @@ pub async fn exit_scraper(db: &impl ConnectionTrait, id: Uuid, scraper: Scraper)
 
 pub async fn resolve_username(
     db: &impl ConnectionTrait,
-    id: Uuid,
+    scraper_id: Uuid,
     scraper: &Scraper,
     username: &str,
-) -> Result<Option<PackedChat>> {
+) -> Result<Option<Uuid>> {
     // 查询user_chat作为缓存返回
+    debug!("search user_chat");
     if let Some(chat) = UserChat::find()
         .filter(
             Condition::all()
-                .add(user_chat::Column::Username.eq(username))
-                .add(user_chat::Column::UserScraper.eq(id)),
+                // 不同的scraper的access_hash不通用, 无法跨scraper缓存
+                .add(user_chat::Column::UserScraper.eq(scraper_id))
+                .add(user_chat::Column::Username.eq(username)),
         )
         .one(db)
         .await?
     {
-        return Ok(Some(chat.packed_chat));
+        return Ok(Some(chat.id));
     }
 
+    debug!("resolve username");
     let chat = if let Some(chat) = scraper.resolve_username(&username).await? {
         chat
     } else {
+        info!("未找到用户名: {}", username);
         return Ok(None);
     };
 
     // 存入user_chat
-    user_chat::ActiveModel {
-        user_scraper: Set(id),
+    debug!("update db");
+    let chat = user_chat::ActiveModel {
+        user_scraper: Set(scraper_id),
         username: Set(Some(username.to_string())),
         packed_chat: Set(chat),
         ..Default::default()
     }
     .insert(db)
-    .await?;
-
-    // 同步到peer系列库中
-    if chat.0.is_user() {
-        peer_people::ActiveModel {
-            people_id: Set(chat.0.id),
-            ..Default::default()
-        }
-        .insert(db)
-        .await?;
-    }
-    if chat.0.is_channel() {
-        peer_channel::ActiveModel {
-            channel_id: Set(chat.0.id),
-            ..Default::default()
-        }
-        .insert(db)
-        .await?;
-    }
+    .await?
+    .id;
 
     Ok(Some(chat))
 }
 
 pub async fn get_stale_esse_channel(
     db: &impl ConnectionTrait,
-    id: Uuid,
+    scraper_id: Uuid,
     scraper: &Scraper,
-) -> Result<PackedChat> {
+) -> Result<Uuid> {
     // 循环直到找到最老的esse对应的packed_chat
     loop {
         let stale_esse = EsseInterestChannel::find()
-            .order_by_asc(esse_interest_channel::Column::UpdatedAt)
+            .order_by_asc(esse_interest_channel::Column::UpdatedAt) // TODO: 需确认最老的是正序排列
             .one(db)
             .await?
             .ok_or(anyhow!("esse channel not found"))?;
-        if let Some(chat) = resolve_username(db, id, scraper, &stale_esse.username).await? {
+        if let Some(chat) = resolve_username(db, scraper_id, scraper, &stale_esse.username).await? {
+            debug!("update db");
+            // 更新时间数值作为stale的参考, 让每次stale的结果都是最老的
+            let mut fresh_esse = stale_esse.into_active_model();
+            fresh_esse.updated_at = Set(now());
+            fresh_esse.update(db).await?;
             return Ok(chat);
         } else {
             warn!("聊天{}未找到, 删除该条目", {
@@ -269,4 +245,137 @@ pub async fn get_stale_esse_channel(
             continue;
         };
     }
+}
+
+pub async fn sync_channel_history(
+    db: &(impl ConnectionTrait + TransactionTrait),
+    scraper_id: Uuid,
+    scraper: &Scraper,
+    chat_id: Uuid,
+) -> Result<()> {
+    debug!("get packed_chat from db");
+    let chat = VUserChatWithId::find_by_id(chat_id)
+        .one(db)
+        .await?
+        .ok_or(anyhow!("chat not found"))?;
+
+    let chat = if chat.joined {
+        chat.packed_chat
+    } else {
+        debug!("join channel");
+        join_channel(db, scraper_id, scraper, chat.id).await?
+    };
+
+    // 分析已有历史
+
+    debug!("create history iterator");
+    let mut i = scraper.iter_history(HistoryConfig {
+        chat,
+        limit: Some(10),
+        offset_date: None,
+        offset_id: Some(72637), // 倒序
+    })?;
+
+    debug!("iterate history to insert");
+    let mut history_to_insert = Vec::new();
+    while let Some(msg) = i.next().await? {
+        let model = peer_history::ActiveModel {
+            user_scraper: Set(scraper_id),
+            user_chat: Set(chat_id),
+            history_id: Set(msg.id()),
+            message: Set(msg.raw.into()),
+            ..Default::default()
+        };
+        history_to_insert.push(model);
+    }
+
+    debug!("insert ({}) history", history_to_insert.len());
+    peer_history::Entity::insert_many(history_to_insert)
+        .exec(db)
+        .await?;
+
+    // TODO: 如何一个账号channel太多，退出该channel并将db的packed_chat设置为null
+    quit_channel(db, scraper_id, scraper, chat_id).await?;
+
+    return Ok(());
+}
+
+async fn join_channel(
+    db: &impl TransactionTrait,
+    scraper_id: Uuid,
+    scraper: &Scraper,
+    chat_id: Uuid,
+) -> Result<PackedChat> {
+    debug!("transaction start");
+    let trans = db.begin().await?;
+
+    // 检查自身是否加入
+    debug!("check if self already joined");
+    let chat = VUserChatWithId::find_by_id(chat_id)
+        .one(&trans)
+        .await?
+        .ok_or(anyhow!("user_chat not found"))?;
+
+    if chat.joined {
+        info!("已加入, 忽略");
+        return Ok(chat.packed_chat);
+    }
+
+    // 加入群组
+    debug!("join channel");
+    let live_chat = scraper
+        .join_chat(chat.packed_chat)
+        .await?
+        .ok_or(anyhow!("join return none"))?;
+
+    debug!("update db");
+    let mut chat = chat.into_active_model();
+    chat.updated_at = Set(now());
+    chat.user_scraper = Set(scraper_id);
+    chat.packed_chat = Set(live_chat.pack().into());
+    chat.joined = Set(true);
+    let chat = chat.update(&trans).await?;
+
+    debug!("transaction commit");
+    trans.commit().await?;
+
+    Ok(chat.packed_chat)
+}
+
+async fn quit_channel(
+    db: &impl TransactionTrait,
+    scraper_id: Uuid,
+    scraper: &Scraper,
+    chat_id: Uuid,
+) -> Result<()> {
+    debug!("transaction start");
+    let trans = db.begin().await?;
+
+    // 检查自身是否退出
+    debug!("check if self already quit");
+    let chat = VUserChatWithId::find_by_id(chat_id)
+        .one(&trans)
+        .await?
+        .ok_or(anyhow!("user_chat not found"))?;
+
+    if !chat.joined {
+        info!("已退出, 忽略");
+        return Ok(());
+    }
+
+    // 退出群组
+    debug!("quit channel");
+    scraper.quit_chat(chat.packed_chat).await?;
+
+    debug!("update db");
+    let mut chat = chat.into_active_model();
+    chat.updated_at = Set(now());
+    chat.user_scraper = Set(scraper_id);
+    chat.joined = Set(false);
+    chat.update(&trans).await?;
+
+    debug!("transaction commit");
+    trans.commit().await?;
+
+    Ok(())
 }

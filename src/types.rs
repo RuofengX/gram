@@ -129,10 +129,10 @@ impl From<tl::enums::storage::FileType> for FileType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
-pub struct Message(tl::types::Message);
+pub struct Message(tl::enums::Message);
 impl Eq for Message {}
-impl From<tl::types::Message> for Message {
-    fn from(value: tl::types::Message) -> Self {
+impl From<tl::enums::Message> for Message {
+    fn from(value: tl::enums::Message) -> Self {
         Self(value)
     }
 }

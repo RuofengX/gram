@@ -39,10 +39,19 @@ CREATE TABLE
         updated_at timestamptz NOT NULL DEFAULT now (),
         user_scraper uuid NOT NULL,
         username text, -- 存在不暴露用户名的聊天对象
-        packed_chat jsonb NOT NULL,
+        packed_chat jsonb NOT NULL, 
+        joined boolean NOT NULL DEFAULT false, 
         CONSTRAINT user_chat_pkey PRIMARY KEY (id),
         CONSTRAINT user_chat_user_scraper_fkey FOREIGN KEY (user_scraper) REFERENCES user_scraper (id)
     );
+
+-- 用户聊天列表虚拟视图(附带聊天id)
+CREATE VIEW v_user_chat_with_id AS
+SELECT
+    *,
+    (packed_chat ->> 'id')::int8 AS chat_id
+FROM user_chat;
+
 
 /* 对端数据库频道信息
 
@@ -50,7 +59,6 @@ CREATE TABLE
 
 也可以脱离user_scraper  
 从新的user_scraper搜索频道用户名获取access_hash加入
- */
 CREATE TABLE
     peer_channel (
         id uuid NOT NULL DEFAULT gen_random_uuid (),
@@ -59,6 +67,7 @@ CREATE TABLE
         full_info jsonb,
         CONSTRAINT peer_channel_pkey PRIMARY KEY (id)
     );
+*/
 
 /* 对端数据库中的用户信息
 
@@ -66,7 +75,6 @@ CREATE TABLE
 
 也可以脱离user_scraper  
 从新的user_scraper搜索用户名获取access_hash加入
- */
 CREATE TABLE
     peer_people (
         id uuid NOT NULL DEFAULT gen_random_uuid (),
@@ -75,6 +83,7 @@ CREATE TABLE
         full_info jsonb,
         CONSTRAINT peer_people_pkey PRIMARY KEY (id)
     );
+*/
 
 -- 用户和群组的关系
 CREATE TABLE
@@ -84,8 +93,8 @@ CREATE TABLE
         channel uuid NOT NULL,
         people uuid NOT NULL,
         CONSTRAINT peer_participant_pkey PRIMARY KEY (id),
-        CONSTRAINT peer_participant_channel_fkey FOREIGN KEY (channel) REFERENCES peer_channel (id),
-        CONSTRAINT peer_participant_people_fkey FOREIGN KEY (people) REFERENCES peer_people (id)
+        CONSTRAINT peer_participant_channel_fkey FOREIGN KEY (channel) REFERENCES user_chat (id),
+        CONSTRAINT peer_participant_people_fkey FOREIGN KEY (people) REFERENCES user_chat (id)
     );
 
 /*
@@ -98,26 +107,14 @@ CREATE TABLE
         updated_at timestamptz NOT NULL DEFAULT now (),
         -- 来源
         user_scraper uuid NOT NULL,
-        -- 以下两个字段二选一
-        people uuid,
-        channel uuid,
+        user_chat uuid NOT NULL,
         --
+        history_id int4 NOT NULL, -- 聊天中的消息编号
         message jsonb NOT NULL, -- 参考`grammers_tl_types::enums::messages::Messages`
         --
         CONSTRAINT peer_history_pkey PRIMARY KEY (id),
         CONSTRAINT peer_history_user_scraper_fkey FOREIGN KEY (user_scraper) REFERENCES user_scraper (id),
-        CONSTRAINT peer_history_people_fkey FOREIGN KEY (people) REFERENCES peer_people (id),
-        CONSTRAINT peer_history_channel_fkey FOREIGN KEY (channel) REFERENCES peer_channel (id),
-        CHECK (
-            (
-                people IS NOT NULL
-                and message IS NULL
-            )
-            OR (
-                people IS NULL
-                and message IS NOT NULL
-            )
-        )
+        CONSTRAINT peer_history_user_chat_fkey FOREIGN KEY (user_chat) REFERENCES (id)
     );
 
 -- 对端数据库文件下载任务
