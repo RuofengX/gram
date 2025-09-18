@@ -14,6 +14,7 @@ use crate::{
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::{DateTime, Local};
+use migration::IdenList;
 use sea_orm::{
     ActiveValue::{NotSet, Set},
     Condition, Database, IntoActiveModel, QueryOrder, TransactionTrait,
@@ -267,18 +268,26 @@ pub async fn sync_channel_history(
     };
 
     // 分析已有历史
+    // 保持数据库中记录永远连续, 仅使用向前追溯、向后增加
 
     debug!("create history iterator");
     let mut i = scraper.iter_history(HistoryConfig {
         chat,
-        limit: Some(10),
+        limit: Some(999999999),
         offset_date: None,
-        offset_id: Some(72637), // 倒序
+        offset_id: None, // 倒序
     })?;
+
+    // TODO: 实现一个和数据库智能交互的迭代器, 用于自动获取数据库没有的(history_id)的记录, 同时处理flood wait
 
     debug!("iterate history to insert");
     let mut history_to_insert = Vec::new();
     while let Some(msg) = i.next().await? {
+        info!(
+            "获取: ({}): {}",
+            msg.id(),
+            msg.text().chars().take(25).collect::<String>()
+        );
         let model = peer_history::ActiveModel {
             user_scraper: Set(scraper_id),
             user_chat: Set(chat_id),
@@ -294,7 +303,6 @@ pub async fn sync_channel_history(
         .exec(db)
         .await?;
 
-    // TODO: 如何一个账号channel太多，退出该channel并将db的packed_chat设置为null
     quit_channel(db, scraper_id, scraper, chat_id).await?;
 
     return Ok(());
