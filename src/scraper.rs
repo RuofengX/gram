@@ -28,7 +28,7 @@ fn init_params() -> InitParams {
     params.lang_code = "my".to_owned();
     params.catch_up = true;
     params.server_addr = None;
-    params.flood_sleep_threshold = 0;
+    params.flood_sleep_threshold = 1200;
     params.update_queue_limit = Some(0x1000000);
     params.reconnection_policy = RETRY_POLICY;
     params

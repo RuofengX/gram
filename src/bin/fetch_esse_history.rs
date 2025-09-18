@@ -1,6 +1,8 @@
 use anyhow::Result;
-use gram::serveless;
-use tracing::{info, warn};
+use gram::{scraper::Scraper, serveless};
+use sea_orm::{ConnectionTrait, TransactionTrait};
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 include!("../../.config.rs");
 
@@ -20,21 +22,32 @@ async fn main() -> Result<()> {
     };
     warn!("会话UUID: {}", scraper_id);
 
+    if let Err(e) = run(&db, scraper_id, &scraper).await {
+        error!("运行时出现错误: {}", e);
+    }
+    warn!("退出会话");
+    serveless::exit_scraper(&db, scraper_id, scraper).await?;
+
+    Ok(())
+}
+
+async fn run(
+    db: &(impl ConnectionTrait + TransactionTrait),
+    scraper_id: Uuid,
+    scraper: &Scraper,
+) -> Result<()> {
     warn!("同步聊天列表");
-    let chat_list = serveless::sync_chat(&db, scraper_id, &scraper).await?;
+    let chat_list = serveless::sync_chat(db, scraper_id, scraper).await?;
     for c in chat_list {
         info!("{}", serde_json::to_string(&c)?);
     }
 
     warn!("遍历最老ESSE群组");
-    let chat_id = serveless::get_stale_esse_channel(&db, scraper_id, &scraper).await?;
+    let chat_id = serveless::get_stale_esse_channel(db, scraper_id, scraper).await?;
     println!("{:?}", chat_id);
 
     warn!("获取群组历史记录");
-    serveless::sync_channel_history(&db, scraper_id, &scraper, chat_id).await?;
-
-    warn!("退出会话");
-    serveless::exit_scraper(&db, scraper_id, scraper).await?;
+    serveless::sync_channel_history(db, scraper_id, scraper, chat_id).await?;
 
     Ok(())
 }

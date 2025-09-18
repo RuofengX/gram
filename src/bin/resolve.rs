@@ -1,6 +1,6 @@
 use anyhow::Result;
 use gram::serveless;
-use tracing::{info, warn};
+use tracing::warn;
 
 include!("../../.config.rs");
 

@@ -1,23 +1,24 @@
+pub mod history;
+
 use crate::{
     entity::{
-        esse_interest_channel, peer_history,
+        esse_interest_channel,
         prelude::{
             EsseInterestChannel, GlobalApiConfig, UserAccount, UserChat, UserScraper,
             VUserChatWithId,
         },
         user_chat, user_scraper,
     },
-    scraper::{HistoryConfig, Scraper},
+    scraper::Scraper,
     stdin_read_line,
     types::{ApiConfig, FrozenSession, PackedChat},
 };
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::{DateTime, Local};
-use migration::IdenList;
 use sea_orm::{
     ActiveValue::{NotSet, Set},
-    Condition, Database, IntoActiveModel, QueryOrder, TransactionTrait,
+    Condition, ConnectOptions, Database, IntoActiveModel, QueryOrder, TransactionTrait,
     prelude::*,
 };
 use tokio::sync::oneshot;
@@ -50,7 +51,9 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
     warn!("连接到数据库");
     dotenv::dotenv().unwrap();
     let url = dotenv::var("DATABASE_URL".to_owned())?;
-    let db = Database::connect(url).await?;
+    let mut opt = ConnectOptions::new(url);
+    opt.sqlx_logging(false); // Disable SQLx log
+    let db = Database::connect(opt).await?;
     Ok(db)
 }
 
@@ -126,13 +129,23 @@ pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uui
 }
 
 pub async fn sync_chat(
-    db: &impl ConnectionTrait,
+    db: &impl TransactionTrait,
     scraper_id: Uuid,
     scraper: &Scraper,
 ) -> Result<Vec<PackedChat>> {
-    info!("枚举当前聊天并发送到数据库");
+    info!("枚举当前聊天并同步到数据库");
+    let trans = db.begin().await?;
+
     let mut ret = Vec::new();
     let mut user_chat_to_insert = Vec::new();
+
+    let exist_chat = UserChat::find()
+        .filter(user_chat::Column::UserScraper.eq(scraper_id))
+        .all(&trans)
+        .await?;
+
+    let exist_chat_id:Vec<i64> = exist_chat.iter()
+        .map(|x|x.packed_chat.0.id).collect();
 
     for (username, chat) in scraper.list_chats_with_username().await? {
         ret.push(chat.clone());
@@ -140,6 +153,7 @@ pub async fn sync_chat(
             user_scraper: Set(scraper_id),
             packed_chat: Set(chat),
             username: Set(username),
+            joined: Set(true),
             ..Default::default()
         });
     }
@@ -147,6 +161,8 @@ pub async fn sync_chat(
     user_chat::Entity::insert_many(user_chat_to_insert)
         .exec(db)
         .await?;
+
+    trans.commit().await?
 
     Ok(ret)
 }
@@ -225,7 +241,7 @@ pub async fn get_stale_esse_channel(
     // 循环直到找到最老的esse对应的packed_chat
     loop {
         let stale_esse = EsseInterestChannel::find()
-            .order_by_asc(esse_interest_channel::Column::UpdatedAt) // TODO: 需确认最老的是正序排列
+            .order_by_asc(esse_interest_channel::Column::UpdatedAt) // 时间的ASCending顺序排序第一个就是最老的
             .one(db)
             .await?
             .ok_or(anyhow!("esse channel not found"))?;
@@ -270,39 +286,17 @@ pub async fn sync_channel_history(
     // 分析已有历史
     // 保持数据库中记录永远连续, 仅使用向前追溯、向后增加
 
-    debug!("create history iterator");
-    let mut i = scraper.iter_history(HistoryConfig {
-        chat,
-        limit: Some(999999999),
-        offset_date: None,
-        offset_id: None, // 倒序
-    })?;
-
-    // TODO: 实现一个和数据库智能交互的迭代器, 用于自动获取数据库没有的(history_id)的记录, 同时处理flood wait
-
-    debug!("iterate history to insert");
-    let mut history_to_insert = Vec::new();
-    while let Some(msg) = i.next().await? {
-        info!(
-            "获取: ({}): {}",
-            msg.id(),
-            msg.text().chars().take(25).collect::<String>()
-        );
-        let model = peer_history::ActiveModel {
-            user_scraper: Set(scraper_id),
-            user_chat: Set(chat_id),
-            history_id: Set(msg.id()),
-            message: Set(msg.raw.into()),
-            ..Default::default()
-        };
-        history_to_insert.push(model);
+    debug!("start expand history");
+    loop {
+        let (total, new) =
+            history::expend_history(db, scraper_id, &scraper, chat_id, chat, 100).await?;
+        warn!("频道: {} - 总:{}/增:{}", chat_id, total, new);
+        if new == 0 {
+            break;
+        }
     }
 
-    debug!("insert ({}) history", history_to_insert.len());
-    peer_history::Entity::insert_many(history_to_insert)
-        .exec(db)
-        .await?;
-
+    debug!("quit channel");
     quit_channel(db, scraper_id, scraper, chat_id).await?;
 
     return Ok(());
