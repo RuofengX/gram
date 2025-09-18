@@ -57,11 +57,13 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
     Ok(db)
 }
 
-pub async fn resume_scraper(db: &impl ConnectionTrait) -> Result<Option<(Uuid, Scraper)>> {
+pub async fn resume_scraper(db: &impl TransactionTrait) -> Result<Option<(Uuid, Scraper)>> {
     info!("获取冻结会话");
+    let trans = db.begin().await?;
     let ret = if let Some(scraper) = UserScraper::find()
-        .filter(user_scraper::Column::InUse.eq(false))
-        .one(db)
+        .filter(user_scraper::Column::InUse.eq(false)) // 选择未在使用的会话
+        .order_by_desc(user_scraper::Column::UpdatedAt) // 始终选择最新的会话
+        .one(&trans)
         .await?
     {
         debug!("{:?}", scraper.frozen_session);
@@ -69,18 +71,20 @@ pub async fn resume_scraper(db: &impl ConnectionTrait) -> Result<Option<(Uuid, S
         debug!("get relate api_config");
         let api_config = scraper
             .find_related(GlobalApiConfig)
-            .one(db)
+            .one(&trans)
             .await?
             .ok_or(anyhow!("relate global_api_config not found"))?;
         debug!("{:?}", api_config);
 
         debug!("create scraper instance");
+        info!("尝试启用会话: {}", scraper.id);
         let s = Scraper::unfreeze(scraper.frozen_session.clone(), api_config.into()).await?;
 
         debug!("set db scraper state");
         let mut scraper = scraper.into_active_model();
         scraper.in_use = Set(true);
-        let id = scraper.update(db).await?.id;
+        let id = scraper.update(&trans).await?.id;
+        trans.commit().await?;
 
         Some((id, s))
     } else {
@@ -257,13 +261,40 @@ pub async fn sync_channel_history(
     // 保持数据库中记录永远连续, 仅使用向前追溯、向后增加
 
     debug!("start expand history");
+
+    let mut all = 0;
+    let mut latest_chunk_size = 500;
     loop {
-        let (total, new) = history::expend_history(db, scraper_id, &scraper, chat_id, chat).await?;
-        warn!("频道: {} - 总:{}/增:{}", chat_id, total, new);
-        if new == 0 {
-            break;
+        let (total, old, new) =
+            history::expend_history(db, scraper_id, &scraper, chat_id, chat, latest_chunk_size)
+                .await?;
+        all += old + new;
+        warn!(
+            "迭代: 频道({}) - 总:{}/历史:{}/更新:{}",
+            chat.0.id,
+            total + old + new,
+            old,
+            new
+        );
+        match (old, new) {
+            (0, 0) => break, // 历史迭代完毕, 期间前向没有新增, 直接退出
+            (0, _) => {
+                // 历史迭代完毕, 有新增仍在迭代
+                latest_chunk_size = 500; // 最大速度迭代新增
+            }
+            (0.., 0) => {
+                // 历史没有迭代完毕, 新增迭代完毕
+                latest_chunk_size = 1; // 最小速度迭代新增
+            }
+            (0.., 0..500) => {
+                // 历史没有迭代完毕, 新增不足500
+                latest_chunk_size = new; // 下次新增获取量减少, 至这次的新增量
+            }
+            (0.., 500) => continue, // 历史没有迭代完毕, 且新增500个, 保持最大速度迭代新增
+            _ => unreachable!(),
         }
     }
+    warn!("总计: 频道({}) - {}", chat.0.id, all);
 
     debug!("quit channel");
     quit_channel(db, scraper_id, scraper, chat_id).await?;

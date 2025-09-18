@@ -13,7 +13,8 @@ use crate::{
 };
 
 /// 将数据库中的历史聊天记录向前、向后**连续**扩展  
-/// 返回数组, 分别是数据库目前条数和此次新增条数
+/// latest_chunk_size控制此次扩展向后延展的条目数量  
+/// 返回数组, 分别是数据库目前条数, 此次新增后向条数, 此次新增前向条数
 ///
 /// 数据库中的历史为单块连续的记录, 同时使用事务确保数据连续、不重复
 pub async fn expend_history(
@@ -22,7 +23,8 @@ pub async fn expend_history(
     scraper: &Scraper,
     chat_id: Uuid,
     packed_chat: PackedChat,
-) -> Result<(usize, usize)> {
+    latest_chunk_size: usize,
+) -> Result<(usize, usize, usize)> {
     let trans = db.begin().await?;
     let mut total = PeerHistory::find()
         .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
@@ -45,13 +47,13 @@ pub async fn expend_history(
 
     let (old, new) = tokio::try_join!(
         expand_oldest(&trans, scraper_id, &scraper, chat_id, packed_chat, 500),
-        expand_latest(&trans, scraper_id, &scraper, chat_id, packed_chat, 10),
+        expand_latest(&trans, scraper_id, &scraper, chat_id, packed_chat, latest_chunk_size),
     )?;
 
     debug!("commit transaction");
     trans.commit().await?;
 
-    Ok((total + old + new, old + new))
+    Ok((total + old + new, old,  new))
 }
 
 /// 向最新的迭代
