@@ -1,7 +1,10 @@
+use std::time::Duration;
+
 use anyhow::Result;
-use gram::{scraper::Scraper, serveless};
+use gram::{scraper::Scraper, serveless, signal_catch};
 use sea_orm::{ConnectionTrait, TransactionTrait};
-use tracing::{error, warn};
+use tokio::sync::mpsc::error::TryRecvError;
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 include!("../../.config.rs");
@@ -22,10 +25,20 @@ async fn main() -> Result<()> {
     };
     warn!("会话UUID: {}", scraper_id);
 
-    if let Err(e) = run(&db, scraper_id, &scraper).await {
-        error!("运行时出现错误: {}", e);
+    info!("开始监听ctrl+c");
+    let mut rx = signal_catch();
+    loop {
+        if !matches!(rx.try_recv(), Err(TryRecvError::Empty)) {
+            // ctrl+c
+            break;
+        }
+
+        if let Err(e) = run(&db, scraper_id, &scraper).await {
+            error!("运行时出现错误: {}", e);
+            break;
+        }
     }
-    warn!("退出会话");
+
     serveless::exit_scraper(&db, scraper_id, scraper).await?;
 
     Ok(())
@@ -36,12 +49,13 @@ async fn run(
     scraper_id: Uuid,
     scraper: &Scraper,
 ) -> Result<()> {
-    warn!("遍历最老ESSE群组");
+    warn!("遍历最老ESSE频道");
     let chat_id = serveless::get_stale_esse_channel(db, scraper_id, scraper).await?;
-    println!("{:?}", chat_id);
 
-    warn!("获取群组历史记录");
     serveless::sync_channel_history(db, scraper_id, scraper, chat_id).await?;
+
+    info!("睡眠30秒");
+    tokio::time::sleep(Duration::from_secs(30)).await;
 
     Ok(())
 }

@@ -29,7 +29,7 @@ fn init_params() -> InitParams {
     params.catch_up = true;
     params.server_addr = None;
     params.flood_sleep_threshold = 1200;
-    params.update_queue_limit = Some(0x1000000);
+    params.update_queue_limit = Some(0); // 不需要监听更新
     params.reconnection_policy = RETRY_POLICY;
     params
 }

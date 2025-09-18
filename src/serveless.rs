@@ -250,6 +250,7 @@ pub async fn sync_channel_history(
         .await?
         .ok_or(anyhow!("chat not found"))?;
 
+    warn!("开始: 频道({})历史记录", chat.chat_id);
     let chat = if chat.joined {
         chat.packed_chat
     } else {
@@ -263,7 +264,7 @@ pub async fn sync_channel_history(
     debug!("start expand history");
 
     let mut all = 0;
-    let mut latest_chunk_size = 500;
+    let mut latest_chunk_size = 50;
     loop {
         let (total, old, new) =
             history::expend_history(db, scraper_id, &scraper, chat_id, chat, latest_chunk_size)
@@ -286,11 +287,11 @@ pub async fn sync_channel_history(
                 // 历史没有迭代完毕, 新增迭代完毕
                 latest_chunk_size = 1; // 最小速度迭代新增
             }
-            (0.., 0..500) => {
-                // 历史没有迭代完毕, 新增不足500
+            (0.., 0..50) => {
+                // 历史没有迭代完毕, 新增不足50
                 latest_chunk_size = new; // 下次新增获取量减少, 至这次的新增量
             }
-            (0.., 500) => continue, // 历史没有迭代完毕, 且新增500个, 保持最大速度迭代新增
+            (0.., 50) => continue, // 历史没有迭代完毕, 且新增500个, 保持当前速度迭代新增
             _ => unreachable!(),
         }
     }
