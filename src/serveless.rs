@@ -121,11 +121,11 @@ pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uui
     debug!("insert scraper in db");
     let scraper_model = user_scraper::ActiveModel {
         id: NotSet,
+        updated_at: NotSet,
         api_config: Set(config_id),
         account: Set(account.id),
         frozen_session: Set(frozen),
         in_use: Set(true),
-        ..Default::default()
     };
     let id = scraper_model.insert(db).await?.id;
 
@@ -191,10 +191,13 @@ pub async fn resolve_username(
     // 存入user_chat
     debug!("update db");
     let chat = user_chat::ActiveModel {
+        id: NotSet,
+        updated_at: NotSet,
         user_scraper: Set(scraper_id),
         username: Set(Some(username.to_string())),
+        user_id: Set(chat.0.id),
         packed_chat: Set(chat),
-        ..Default::default()
+        joined: Set(false),
     }
     .insert(db)
     .await?

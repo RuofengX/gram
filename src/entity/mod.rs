@@ -8,6 +8,8 @@ pub mod peer_file_part;
 pub mod peer_history;
 pub mod peer_media;
 pub mod peer_participant;
+// TODO: 完成关系构建
+// pub mod peer_user_full;
 pub mod user_account;
 pub mod user_chat;
 pub mod user_scraper;

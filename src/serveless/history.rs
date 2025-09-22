@@ -1,7 +1,8 @@
 use anyhow::{Result, anyhow};
 use sea_orm::{
-    ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, TransactionTrait,
+    ActiveValue::{NotSet, Set},
+    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
 };
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
@@ -47,13 +48,20 @@ pub async fn expend_history(
 
     let (old, new) = tokio::try_join!(
         expand_oldest(&trans, scraper_id, &scraper, chat_id, packed_chat, 500),
-        expand_latest(&trans, scraper_id, &scraper, chat_id, packed_chat, latest_chunk_size),
+        expand_latest(
+            &trans,
+            scraper_id,
+            &scraper,
+            chat_id,
+            packed_chat,
+            latest_chunk_size
+        ),
     )?;
 
     debug!("commit transaction");
     trans.commit().await?;
 
-    Ok((total + old + new, old,  new))
+    Ok((total + old + new, old, new))
 }
 
 /// 向最新的迭代
@@ -161,8 +169,8 @@ async fn fetch(
     max_limit: Option<i32>,
     min_limit: Option<i32>,
 ) -> Result<usize> {
-    if max_limit == Some(0){
-        return Ok(0)
+    if max_limit == Some(0) {
+        return Ok(0);
     }
 
     let packed_chat_id = packed_chat.0.id;
@@ -192,12 +200,13 @@ async fn fetch(
                 .collect::<String>()
         );
         let model = peer_history::ActiveModel {
+            id: NotSet,
+            updated_at: NotSet,
             user_scraper: Set(scraper_id),
             user_chat: Set(chat_id),
             chat_id: Set(packed_chat_id),
             history_id: Set(msg.id()),
             message: Set(msg.raw.into()),
-            ..Default::default()
         };
         history_to_insert.push(model);
     }

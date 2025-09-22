@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use gram::{scraper::Scraper, serveless, signal_catch};
 use sea_orm::{ConnectionTrait, TransactionTrait};
@@ -54,8 +52,8 @@ async fn run(
 
     serveless::sync_channel_history(db, scraper_id, scraper, chat_id).await?;
 
-    info!("睡眠30秒");
-    tokio::time::sleep(Duration::from_secs(30)).await;
+    // info!("睡眠30秒");
+    // tokio::time::sleep(Duration::from_secs(30)).await;
 
     Ok(())
 }

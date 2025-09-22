@@ -39,6 +39,7 @@ CREATE TABLE
         updated_at timestamptz NOT NULL DEFAULT now (),
         user_scraper uuid NOT NULL,
         username text, -- 存在不暴露用户名的聊天对象
+        user_id int8,
         packed_chat jsonb NOT NULL, 
         joined boolean NOT NULL DEFAULT false, 
         CONSTRAINT user_chat_pkey PRIMARY KEY (id),

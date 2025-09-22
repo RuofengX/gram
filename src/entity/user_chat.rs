@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::types::PackedChat;
+use crate::types::{ChannelFull, PackedChat, UserFull};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "user_chat")]
@@ -12,10 +12,11 @@ pub struct Model {
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
     pub user_scraper: Uuid,
+    pub user_id: i64,
     #[sea_orm(column_type = "Text", nullable)]
     pub username: Option<String>, // 存在无用户名的聊天, 用户没有设置即无用户名
     #[sea_orm(column_type = "JsonBinary")]
-    pub packed_chat: PackedChat,
+    pub packed_chat: PackedChat, // 包含用户id
     pub joined: bool,
 }
 
