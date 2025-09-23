@@ -1,0 +1,33 @@
+[package]
+name = "gram-scraper"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gram-core = { path = "../gram-core" }
+anyhow = "1.0.98"
+axum = { version = "0.8.4", features = ["macros", "ws"] }
+grammers-client = { version= "0.7.0", features = [
+    "parse_invite_link",
+    "serde",
+] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_bytes = "0.11.17"
+tokio = { version = "1.47.1", features = ["full", "tracing"] }
+tracing = { version = "0.1.41", features = ["attributes"] }
+uuid = { version = "1.17.0", features = ["serde", "v4"] }
+serde_json = "1.0.143"
+dashmap = "6.1.0"
+bytes = "1.10.1"
+http-body = "1.0.1"
+tracing-subscriber = "0.3.20"
+serde_repr_base64 = "0.1.0"
+axum-streams = { version = "0.23.1", features = ["json"] }
+tokio-stream = "0.1.17"
+futures-core = "0.3.31"
+sea-orm = "1.1.15"
+dotenv = "0.15.0"
+chrono = "0.4.42"
+
+[dev-dependencies]
+serde_json = "1.0.143"

@@ -1,0 +1,9 @@
+[package]
+name = "gram-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+grammers-tl-types = "0.7.0"
+pyo3 = "0.26.0"
