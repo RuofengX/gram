@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "migration"]
+members = ["."]
 
 [package]
 name = "gram"
@@ -7,8 +7,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-migration = { path = "migration" }
-
 anyhow = "1.0.98"
 axum = { version = "0.8.4", features = ["macros", "ws"] }
 grammers-client = { features = [
@@ -34,7 +32,7 @@ dotenv = "0.15.0"
 chrono = "0.4.42"
 
 [patch.crates-io]
-grammers-client = { git = "https://github.com/Lonami/grammers"}
+grammers-client = { git = "https://github.com/Lonami/grammers" }
 
 [dev-dependencies]
 serde_json = "1.0.143"
