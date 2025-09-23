@@ -37,7 +37,6 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
     Ok(db)
 }
 
-
 /// 将用户名解析为packe_chat并存入数据库, 返回数据库条目的uuid
 ///
 /// 函数会自动查询同scraper之前解析的缓存, 减少FLOOD

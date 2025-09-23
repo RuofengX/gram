@@ -1,9 +1,9 @@
 mod convert;
 
-use std::collections::HashSet;
-use crate::{mention::convert::utf16_range_to_utf8, format::deserialize_msg};
+use crate::{format::deserialize_msg, mention::convert::utf16_range_to_utf8};
 use anyhow::Result;
 use grammers_tl_types as tl;
+use std::collections::HashSet;
 
 /// 输入json格式的tl::enums::Message  
 /// 分析其内容是否包含entities为Mention与mentionName标记,
@@ -53,7 +53,7 @@ pub fn get_mentioned(msg: &str) -> Result<(HashSet<String>, HashSet<i64>)> {
                     }) // 获取以utf8计算的字节长度
                     .flat_map(|(start, end)| msg.message.get(start..end)) // 截取用户名部分
                     .flat_map(|x| x.get(1..)) // 删除@键
-                    .map(|x|x.to_lowercase()) // 转换小写
+                    .map(|x| x.to_lowercase()) // 转换小写
                     .map(|x| x.to_string())
                     .collect()
             } else {
