@@ -1,7 +1,6 @@
 use crate::{
-    entity::{peer_full, prelude::*, user_chat, user_scraper},
+    entity::{peer_full, prelude::*, user_chat},
     scraper::Scraper,
-    stdin_read_line,
     types::{ApiConfig, FrozenSession, PackedChat},
 };
 use anyhow::anyhow;
@@ -38,65 +37,6 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
     Ok(db)
 }
 
-pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uuid, Scraper)> {
-    info!("从stdin输入验证码登录以创建爬虫会话");
-
-    debug!("get global_api_config");
-    let api_config = GlobalApiConfig::find()
-        .one(db)
-        .await?
-        .ok_or(anyhow!("global_api_config not found"))?;
-    let config_id = api_config.id;
-
-    debug!("get user_account");
-    let account = UserAccount::find()
-        .one(db)
-        .await?
-        .ok_or(anyhow!("user_account not found"))?;
-    let phone = account.phone.clone();
-
-    debug!("get confirm code from stdin");
-    let code = stdin_read_line(format!("请输入TG号为{}的验证码", phone));
-
-    debug!("create scraper");
-    let scraper = Scraper::login_async(api_config.into(), &phone, code).await?;
-    let frozen = scraper.freeze();
-
-    debug!("insert scraper in db");
-    let scraper_model = user_scraper::ActiveModel {
-        id: NotSet,
-        updated_at: NotSet,
-        api_config: Set(config_id),
-        account: Set(account.id),
-        frozen_session: Set(frozen),
-        in_use: Set(true),
-    };
-    let id = scraper_model.insert(db).await?.id;
-
-    Ok((id, scraper))
-}
-
-pub async fn exit_scraper(
-    db: &impl ConnectionTrait,
-    scraper_id: Uuid,
-    scraper: Scraper,
-) -> Result<()> {
-    info!("退出爬虫，更新数据库状态");
-
-    debug!("freeze scraper instence");
-    let frozen = scraper.freeze();
-    let scraper_update = user_scraper::ActiveModel {
-        id: Set(scraper_id),
-        updated_at: Set(now()),
-        api_config: NotSet,
-        account: NotSet,
-        frozen_session: Set(frozen),
-        in_use: Set(false),
-    };
-    debug!("update scraper in db");
-    scraper_update.update(db).await?;
-    Ok(())
-}
 
 /// 将用户名解析为packe_chat并存入数据库, 返回数据库条目的uuid
 ///

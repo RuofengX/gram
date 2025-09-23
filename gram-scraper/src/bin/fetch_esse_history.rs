@@ -1,9 +1,10 @@
 use anyhow::Result;
-use gram_scraper::{scraper::Scraper, serveless::{self, channel_history::update_stale_esse_channel}, signal_catch};
-use sea_orm::{ConnectionTrait, TransactionTrait};
+use gram_scraper::{
+    serveless::{self, channel_history::update_stale_esse_channel},
+    signal_catch,
+};
 use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 include!("../../.config.rs");
 
@@ -11,14 +12,14 @@ include!("../../.config.rs");
 async fn main() -> Result<()> {
     gram_scraper::init_tracing();
 
-    let db = serveless::connect_db().await?;
+    let db = serveless::general::connect_db().await?;
 
     warn!("获取会话");
-    let (scraper_id, scraper) = if let Some(ret) = serveless::resume_scraper(&db).await? {
+    let (scraper_id, scraper) = if let Some(ret) = serveless::scraper::resume_scraper(&db).await? {
         ret
     } else {
         warn!("无可用会话，创建新会话");
-        let ret = serveless::create_scraper_from_stdin(&db).await?;
+        let ret = serveless::scraper::create_scraper_from_stdin(&db).await?;
         ret
     };
     warn!("会话UUID: {}", scraper_id);
@@ -37,7 +38,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    serveless::exit_scraper(&db, scraper_id, scraper).await?;
+    serveless::scraper::exit_scraper(&db, scraper_id, scraper).await?;
 
     Ok(())
 }
