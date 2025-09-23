@@ -381,3 +381,34 @@ async fn quit_channel(
 
     Ok(())
 }
+
+pub async fn get_stale_esse_username(
+    db: &impl ConnectionTrait,
+    scraper_id: Uuid,
+    scraper: &Scraper,
+) -> Result<Uuid> {
+    // 循环直到找到最老的esse username
+    loop {
+        let stale_esse = EsseInterestChannel::find()
+            .order_by_asc(esse_interest_channel::Column::UpdatedAt) // 时间的ASCending顺序排序第一个就是最老的
+            .one(db)
+            .await?
+            .ok_or(anyhow!("esse table empty"))?;
+        if let Some(chat) = resolve_username(db, scraper_id, scraper, &stale_esse.username).await? {
+            debug!("update db");
+            // 更新时间数值作为stale的参考, 让每次stale的结果都是最老的
+            let mut fresh_esse = stale_esse.into_active_model();
+            fresh_esse.updated_at = Set(now());
+            fresh_esse.update(db).await?;
+            return Ok(chat);
+        } else {
+            warn!("聊天{}未找到, 删除该条目", {
+                stale_esse.username
+            });
+            EsseInterestChannel::delete_by_id(stale_esse.id)
+                .exec(db)
+                .await?;
+            continue;
+        };
+    }
+}

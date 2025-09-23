@@ -16,5 +16,7 @@ pub struct Model {
     pub channel_full: Option<ChannelFull>, // 存在无用户名的聊天, 用户没有设置即无用户名
 }
 
-pub struct Relation{
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation{
+    
 }

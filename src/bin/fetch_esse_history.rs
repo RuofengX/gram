@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
             break;
         }
 
-        if let Err(e) = run(&db, scraper_id, &scraper).await {
+        if let Err(e) = sync_esse_channel(&db, scraper_id, &scraper).await {
             error!("运行时出现错误: {}", e);
             break;
         }
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run(
+async fn sync_esse_channel(
     db: &(impl ConnectionTrait + TransactionTrait),
     scraper_id: Uuid,
     scraper: &Scraper,
