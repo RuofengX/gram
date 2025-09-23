@@ -1,4 +1,4 @@
-use crate::types::{ApiConfig, FrozenSession, PackedChat};
+use crate::types::{ApiConfig, ChannelFull, FrozenSession, PackedChat, UserFull};
 use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
 use grammers_client::{
@@ -209,10 +209,7 @@ impl Scraper {
         Ok(ret)
     }
 
-    pub async fn fetch_user_info(
-        &self,
-        PackedChat(user): PackedChat,
-    ) -> Result<tl::types::users::UserFull> {
+    pub async fn fetch_user_info(&self, PackedChat(user): PackedChat) -> Result<UserFull> {
         if !user.is_user() {
             bail!("target chat not user");
         }
@@ -228,13 +225,12 @@ impl Scraper {
             .invoke(&tl::functions::users::GetFullUser { id: input_user })
             .await?;
         let tl::enums::users::UserFull::Full(ret) = ret;
-        Ok(ret)
+        let ret = ret.full_user;
+        let tl::enums::UserFull::Full(ret) = ret;
+        Ok(ret.into())
     }
 
-    pub async fn fetch_channel_info(
-        &self,
-        PackedChat(channel): PackedChat,
-    ) -> Result<tl::types::messages::ChatFull> {
+    pub async fn fetch_channel_info(&self, PackedChat(channel): PackedChat) -> Result<ChannelFull> {
         if !channel.is_channel() {
             bail!("target chat not channel");
         }
@@ -252,7 +248,12 @@ impl Scraper {
             })
             .await?;
         let tl::enums::messages::ChatFull::Full(ret) = ret;
-        Ok(ret)
+        let ret = ret.full_chat;
+        if let tl::enums::ChatFull::ChannelFull(ret) = ret {
+            Ok(ret.into())
+        } else {
+            bail!("target is channel but api return a user")
+        }
     }
 
     pub async fn quit_chat(&self, PackedChat(chat): PackedChat) -> Result<()> {

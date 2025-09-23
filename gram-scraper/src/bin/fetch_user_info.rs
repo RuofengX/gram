@@ -1,5 +1,5 @@
 use anyhow::Result;
-use gram::{scraper::Scraper, serveless, signal_catch};
+use gram_scraper::{scraper::Scraper, serveless, signal_catch};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use tokio::sync::mpsc::error::TryRecvError;
 use tracing::{error, info, warn};
@@ -9,7 +9,7 @@ include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    gram::init_tracing();
+    gram_scraper::init_tracing();
 
     let db = serveless::connect_db().await?;
 

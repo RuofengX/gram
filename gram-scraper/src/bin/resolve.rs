@@ -1,12 +1,12 @@
 use anyhow::Result;
-use gram::serveless;
+use gram_scraper::serveless;
 use tracing::warn;
 
 include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    gram::init_tracing();
+    gram_scraper::init_tracing();
 
     let db = serveless::connect_db().await?;
 

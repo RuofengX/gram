@@ -10,7 +10,6 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
-    pub user_scraper: Uuid,
     pub user_chat: Uuid,
     pub history_id: i32,
     #[sea_orm(column_type = "JsonBinary")]
@@ -28,25 +27,11 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     UserChat,
-    #[sea_orm(
-        belongs_to = "super::user_scraper::Entity",
-        from = "Column::UserScraper",
-        to = "super::user_scraper::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    UserScraper,
 }
 
 impl Related<super::user_chat::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::UserChat.def()
-    }
-}
-
-impl Related<super::user_scraper::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UserScraper.def()
     }
 }
 

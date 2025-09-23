@@ -1,11 +1,11 @@
-use gram::{executor::Executor, serve::app};
+use gram_scraper::{executor::Executor, serve::app};
 use tracing::warn;
 
 include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() {
-    gram::init_tracing();
+    gram_scraper::init_tracing();
 
     let executor = Executor::new(TEST_API_CONFIG.into());
 

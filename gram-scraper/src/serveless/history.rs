@@ -8,9 +8,8 @@ use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
 use crate::{
-    entity::{peer_history, prelude::PeerHistory},
+    entity::{peer_history, prelude::PeerHistory, user_chat},
     scraper::{HistoryConfig, Scraper},
-    types::PackedChat,
 };
 
 /// 将数据库中的历史聊天记录向前、向后**连续**扩展  
@@ -22,13 +21,12 @@ pub async fn expend_history(
     db: &impl TransactionTrait,
     scraper_id: Uuid,
     scraper: &Scraper,
-    chat_id: Uuid,
-    packed_chat: PackedChat,
+    user_chat: &user_chat::Model,
     latest_chunk_size: usize,
 ) -> Result<(usize, usize, usize)> {
     let trans = db.begin().await?;
     let mut total = PeerHistory::find()
-        .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
+        .filter(peer_history::Column::ChatId.eq(user_chat.packed_chat.0.id))
         .count(&trans)
         .await? as usize;
     if total == 0 {
@@ -37,8 +35,7 @@ pub async fn expend_history(
             &trans,
             scraper_id,
             scraper,
-            chat_id,
-            packed_chat,
+            &user_chat,
             Some(100),
             None,
             None,
@@ -47,15 +44,8 @@ pub async fn expend_history(
     }
 
     let (old, new) = tokio::try_join!(
-        expand_oldest(&trans, scraper_id, &scraper, chat_id, packed_chat, 500),
-        expand_latest(
-            &trans,
-            scraper_id,
-            &scraper,
-            chat_id,
-            packed_chat,
-            latest_chunk_size
-        ),
+        expand_oldest(&trans, scraper_id, &scraper, &user_chat, 500),
+        expand_latest(&trans, scraper_id, &scraper, &user_chat, latest_chunk_size),
     )?;
 
     debug!("commit transaction");
@@ -70,8 +60,7 @@ async fn expand_latest(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
     scraper: &Scraper,
-    chat_id: Uuid,
-    packed_chat: PackedChat,
+    user_chat: &user_chat::Model,
     chunk_size: usize,
 ) -> Result<usize> {
     let mut count = 0;
@@ -79,7 +68,7 @@ async fn expand_latest(
     // 获取最新的history_id
     debug!("get latest history_id from db");
     let history = PeerHistory::find()
-        .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
+        .filter(peer_history::Column::ChatId.eq(user_chat.packed_chat.0.id))
         .order_by_desc(peer_history::Column::HistoryId) // 降序就是最新的
         .one(db)
         .await?
@@ -98,8 +87,7 @@ async fn expand_latest(
         db,
         scraper_id,
         scraper,
-        chat_id,
-        packed_chat,
+        user_chat,
         Some(chunk_size),
         Some(start_offset),
         Some(history.history_id),
@@ -114,8 +102,7 @@ async fn expand_oldest(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
     scraper: &Scraper,
-    chat_id: Uuid,
-    packed_chat: PackedChat,
+    user_chat: &user_chat::Model,
     chunk_size: usize,
 ) -> Result<usize> {
     let mut count = 0;
@@ -123,7 +110,7 @@ async fn expand_oldest(
     // 获取最老的history_id
     debug!("get latest history_id from db");
     let history = PeerHistory::find()
-        .filter(peer_history::Column::ChatId.eq(packed_chat.0.id))
+        .filter(peer_history::Column::ChatId.eq(user_chat.packed_chat.0.id))
         .order_by_asc(peer_history::Column::HistoryId) // 升序就是最老的
         .one(db)
         .await?
@@ -143,8 +130,7 @@ async fn expand_oldest(
         db,
         scraper_id,
         scraper,
-        chat_id,
-        packed_chat,
+        user_chat,
         Some(chunk_size),
         Some(start_offset),
         None,
@@ -158,13 +144,12 @@ async fn expand_oldest(
 ///
 /// 如果设置了max_limit, 则将请求小于该参数的记录  
 /// 如果设置了min_limit, 则所有不大于该参数的记录将被丢弃
-#[instrument(level = "debug", skip(db, scraper, packed_chat))]
+#[instrument(level = "debug", skip(db, scraper, user_chat))]
 async fn fetch(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
     scraper: &Scraper,
-    chat_id: Uuid,
-    packed_chat: PackedChat,
+    user_chat: &user_chat::Model,
     limit: Option<usize>,
     max_limit: Option<i32>,
     min_limit: Option<i32>,
@@ -173,6 +158,7 @@ async fn fetch(
         return Ok(0);
     }
 
+    let packed_chat = user_chat.packed_chat;
     let packed_chat_id = packed_chat.0.id;
     let mut iter = scraper.iter_history(HistoryConfig {
         chat: packed_chat,
@@ -202,8 +188,7 @@ async fn fetch(
         let model = peer_history::ActiveModel {
             id: NotSet,
             updated_at: NotSet,
-            user_scraper: Set(scraper_id),
-            user_chat: Set(chat_id),
+            user_chat: Set(user_chat.id),
             chat_id: Set(packed_chat_id),
             history_id: Set(msg.id()),
             message: Set(msg.raw.into()),

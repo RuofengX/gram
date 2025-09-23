@@ -30,8 +30,6 @@ pub enum Relation {
     GlobalApiConfig,
     #[sea_orm(has_many = "super::peer_file_part::Entity")]
     PeerFilePart,
-    #[sea_orm(has_many = "super::peer_history::Entity")]
-    PeerHistory,
     #[sea_orm(has_many = "super::peer_media::Entity")]
     PeerMedia,
     #[sea_orm(
@@ -55,12 +53,6 @@ impl Related<super::global_api_config::Entity> for Entity {
 impl Related<super::peer_file_part::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PeerFilePart.def()
-    }
-}
-
-impl Related<super::peer_history::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::PeerHistory.def()
     }
 }
 

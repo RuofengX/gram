@@ -1,7 +1,7 @@
 use crate::{
     executor::Executor,
     scraper::{DownloadConfig, HistoryConfig},
-    types::{FrozenSession, PackedChat},
+    types::{ChannelFull, FrozenSession, PackedChat, UserFull},
 };
 use anyhow::{anyhow, bail};
 use axum::{
@@ -319,7 +319,7 @@ async fn fetch_user(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
     Json(user): Json<PackedChat>,
-) -> Result<Json<tl::types::users::UserFull>> {
+) -> Result<Json<UserFull>> {
     let ret = s
         .get_session(&session_id)?
         .value()
@@ -333,7 +333,7 @@ async fn fetch_channel(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
     Json(channel): Json<PackedChat>,
-) -> Result<Json<tl::types::messages::ChatFull>> {
+) -> Result<Json<ChannelFull>> {
     let ret = s
         .get_session(&session_id)?
         .value()
