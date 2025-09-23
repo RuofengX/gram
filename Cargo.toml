@@ -2,6 +2,9 @@
 members = ["gram-core", "gram-pytools", "gram-scraper"]
 resolver = "3"
 
-[patch.crates-io]
-grammers-client = { git = "https://github.com/Lonami/grammers/" }
+[workspace.dependencies]
+anyhow = "1.0.100"
+grammers-client = { git = "https://github.com/Lonami/grammers/"  }
 grammers-tl-types = { git = "https://github.com/Lonami/grammers/" }
+serde = { version = "1.0.226", features = ["derive"] }
+serde_json = "1.0.145"

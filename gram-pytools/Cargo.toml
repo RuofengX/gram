@@ -10,13 +10,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gram-core = { path = "../gram-core" }
-anyhow = "1.0.100"
-grammers-tl-types = { git = "https://github.com/Lonami/grammers", features = [
-    "impl-serde",
-] }
-serde = { version = "1.0.226", features = ["serde_derive"] }
-serde_json = "1.0.145"
+anyhow = { workspace = true }
+grammers-tl-types = { workspace = true, features = ["impl-serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 pyo3 = "0.26.0"
-
-[patch.crates-io]
-grammers-tl-types = { git = "https://github.com/Lonami/grammers" }

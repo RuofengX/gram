@@ -1,15 +1,9 @@
 mod convert;
 
 use std::collections::HashSet;
-use crate::{mention::convert::utf16_range_to_utf8, precompute::deserialize_msg};
+use crate::{mention::convert::utf16_range_to_utf8, format::deserialize_msg};
 use anyhow::Result;
 use grammers_tl_types as tl;
-use pyo3::prelude::*;
-
-#[pyfunction]
-pub fn get_mentioned(msg: &str) -> PyResult<(HashSet<String>, HashSet<i64>)> {
-    get_mentioned_inner(msg).map_err(|e| crate::AnyhowError::new_err(e.to_string()))
-}
 
 /// 输入json格式的tl::enums::Message  
 /// 分析其内容是否包含entities为Mention与mentionName标记,
@@ -18,7 +12,7 @@ pub fn get_mentioned(msg: &str) -> PyResult<(HashSet<String>, HashSet<i64>)> {
 /// 返回两个列表，分别包含用户名和用户ID
 ///
 /// 相关文档: https://core.telegram.org/api/entities
-fn get_mentioned_inner(msg: &str) -> Result<(HashSet<String>, HashSet<i64>)> {
+pub fn get_mentioned(msg: &str) -> Result<(HashSet<String>, HashSet<i64>)> {
     let msg = deserialize_msg(msg)?;
     let mut ret_user_id = HashSet::new();
     let mentions = match msg {
