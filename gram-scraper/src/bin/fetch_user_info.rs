@@ -1,7 +1,7 @@
 use anyhow::Result;
 use gram_scraper::{serveless, signal_catch};
 use tokio::sync::mpsc::error::TryRecvError;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 include!("../../.config.rs");
 
@@ -29,11 +29,19 @@ async fn main() -> Result<()> {
             break;
         }
 
-        if let Err(e) =
-            serveless::username_full::update_stale_esse_usename(&db, scraper_id, &scraper).await
-        {
-            error!("运行时出现错误: {}", e);
-            break;
+        match serveless::username_full::update_stale_esse_usename(&db, scraper_id, &scraper).await {
+            Ok(Some(id)) => {
+                debug!("fetch and insert username info to {}", id);
+                continue;
+            }
+            Ok(None) => {
+                warn!("已无待更新项目");
+                break;
+            }
+            Err(e) => {
+                error!("运行时出现错误: {}", e);
+                break;
+            }
         }
     }
 

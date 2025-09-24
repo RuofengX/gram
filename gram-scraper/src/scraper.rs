@@ -225,8 +225,6 @@ impl Scraper {
             .invoke(&tl::functions::users::GetFullUser { id: input_user })
             .await?;
         let tl::enums::users::UserFull::Full(ret) = ret;
-        let ret = ret.full_user;
-        let tl::enums::UserFull::Full(ret) = ret;
         Ok(ret.into())
     }
 
@@ -248,12 +246,7 @@ impl Scraper {
             })
             .await?;
         let tl::enums::messages::ChatFull::Full(ret) = ret;
-        let ret = ret.full_chat;
-        if let tl::enums::ChatFull::ChannelFull(ret) = ret {
-            Ok(ret.into())
-        } else {
-            bail!("target is channel but api return a user")
-        }
+        Ok(ret.into())
     }
 
     pub async fn quit_chat(&self, PackedChat(chat): PackedChat) -> Result<()> {

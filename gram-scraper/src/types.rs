@@ -93,19 +93,19 @@ impl FrozenSession {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
-pub struct ChannelFull(tl::types::ChannelFull);
+pub struct ChannelFull(pub tl::types::messages::ChatFull);
 impl Eq for ChannelFull {}
-impl From<tl::types::ChannelFull> for ChannelFull {
-    fn from(value: tl::types::ChannelFull) -> Self {
+impl From<tl::types::messages::ChatFull> for ChannelFull {
+    fn from(value: tl::types::messages::ChatFull) -> Self {
         Self(value)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
-pub struct UserFull(tl::types::UserFull);
+pub struct UserFull(pub tl::types::users::UserFull); // 最全的信息
 impl Eq for UserFull {}
-impl From<tl::types::UserFull> for UserFull {
-    fn from(value: tl::types::UserFull) -> Self {
+impl From<tl::types::users::UserFull> for UserFull {
+    fn from(value: tl::types::users::UserFull) -> Self {
         Self(value)
     }
 }

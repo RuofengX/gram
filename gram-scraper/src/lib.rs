@@ -8,7 +8,6 @@ pub mod executor;
 pub mod scraper;
 pub mod serve;
 pub mod serveless;
-mod test;
 pub mod types;
 
 pub fn stdin_read_line(prompt: String) -> tokio::sync::oneshot::Receiver<String> {

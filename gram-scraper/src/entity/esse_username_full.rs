@@ -12,6 +12,8 @@ pub struct Model {
     pub source: Option<Uuid>,
     #[sea_orm(column_type = "Text")]
     pub username: String,
+    #[sea_orm(nullable)]
+    pub is_valid: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

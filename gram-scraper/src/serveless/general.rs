@@ -31,8 +31,16 @@ pub async fn connect_db() -> Result<DatabaseConnection> {
     warn!("连接到数据库");
     dotenv::dotenv().unwrap();
     let url = dotenv::var("DATABASE_URL".to_owned())?;
+
     let mut opt = ConnectOptions::new(url);
-    opt.sqlx_logging(false); // Disable SQLx log
+
+    #[cfg(not(debug_assertions))]
+    // release: Disable SQLx log
+    opt.sqlx_logging(false);
+
+    #[cfg(debug_assertions)]
+    opt.sqlx_logging(true);
+
     let db = Database::connect(opt).await?;
     Ok(db)
 }
@@ -175,15 +183,7 @@ pub async fn full_info(
     scraper: &Scraper,
     user_chat: &user_chat::Model,
 ) -> Result<Uuid> {
-    // 查询peer_full作为缓存返回
-    debug!("search peer_full");
-    if let Some(chat) = PeerFull::find()
-        .filter(user_chat::Column::UserId.eq(user_chat.id))
-        .one(db)
-        .await?
-    {
-        return Ok(chat.id);
-    }
+    debug!("fetch user{} full info", user_chat.user_id);
 
     let username = user_chat.username.clone();
     let chat = user_chat.packed_chat;

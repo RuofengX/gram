@@ -2477,6 +2477,8 @@ dependencies = [
  "smallvec",
  "thiserror",
  "time",
+ "tokio",
+ "tokio-stream",
  "tracing",
  "url",
  "uuid",
@@ -2516,6 +2518,7 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.106",
+ "tokio",
  "url",
 ]
 
