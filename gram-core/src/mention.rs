@@ -1,4 +1,4 @@
-mod convert;
+pub mod convert;
 
 use crate::{format::deserialize_msg, mention::convert::utf16_range_to_utf8};
 use anyhow::Result;

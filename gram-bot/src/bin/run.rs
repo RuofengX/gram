@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
 
     teloxide::repl(bot, |bot: Bot, msg: Message| async move {
         match parse(bot, msg).await {
-            Ok(()) => Ok(()),
+            Ok(usernames) => Ok(()),
             Err(e) => {
                 error!("处理消息时发生错误: {}", e);
                 Ok(())
@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn parse(bot: Bot, msg: Message) -> Result<()> {
+async fn parse(bot: Bot, msg: Message) -> Result<Vec<String>> {
     let mut username_list = Vec::new();
     let text = msg.text().ok_or(anyhow!("消息无内容"))?;
     if let Some(entities) = msg.entities() {
@@ -43,7 +43,15 @@ async fn parse(bot: Bot, msg: Message) -> Result<()> {
                 username_list.push(username);
             }
         }
-        username_list
-    } 
-    Ok(())
+        Ok(username_list)
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+async fn send_usernames(usernames: Vec<String>) -> Result<()> {
+    if usernames.len() == 0 {
+        return Ok(());
+    }
+    todo!()
 }
