@@ -829,6 +829,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "gram-bot"
+version = "0.1.0"
+
+[[package]]
 name = "gram-core"
 version = "0.1.0"
 dependencies = [
@@ -836,6 +840,8 @@ dependencies = [
  "grammers-tl-types",
  "serde",
  "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

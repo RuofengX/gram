@@ -5,7 +5,7 @@ include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() {
-    gram_scraper::init_tracing();
+    gram_core::log::init_tracing();
 
     let executor = Executor::new(TEST_API_CONFIG.into());
 

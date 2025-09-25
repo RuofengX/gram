@@ -7,7 +7,7 @@ include!("../../.config.rs");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    gram_scraper::init_tracing();
+    gram_core::log::init_tracing();
 
     let db = serveless::general::connect_db().await?;
 
