@@ -5,10 +5,10 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    entity::{esse_username_full, peer_full, prelude::*},
     scraper::Scraper,
     serveless::general::{full_info, now, resolve_username},
 };
+use gram_type::entity::{esse_username_full, peer_full, prelude::*};
 
 /// 获取最老的、一天内没有解析过的、有效的full_info的esse_username表信息  
 /// 如果这样的esse_username表存在, 则

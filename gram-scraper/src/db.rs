@@ -1,5 +1,5 @@
-use crate::entity::{global_api_config, prelude::*, user_account};
 use anyhow::{Result, anyhow};
+use gram_type::entity::{global_api_config, prelude::*, user_account};
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 pub async fn fetch_config(

@@ -1,13 +1,14 @@
 [workspace]
-members = [ "gram-bot", "gram-core", "gram-pytools", "gram-scraper"]
+members = ["gram-bot", "gram-core", "gram-pytools", "gram-scraper", "gram-type"]
 resolver = "3"
 
 [workspace.dependencies]
 anyhow = "1.0.100"
-grammers-client = { git = "https://github.com/Lonami/grammers/"  }
+grammers-client = { git = "https://github.com/Lonami/grammers/" }
 grammers-tl-types = { git = "https://github.com/Lonami/grammers/" }
 
 serde = { version = "1.0.226", features = ["derive"] }
 serde_json = "1.0.145"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+sea-orm = { version = "1.1.15", features = ["runtime-tokio", "sqlx-postgres"] }

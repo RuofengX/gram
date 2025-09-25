@@ -3,12 +3,10 @@ use std::io::BufRead;
 use tracing::warn;
 
 pub mod db;
-pub mod entity;
 pub mod executor;
 pub mod scraper;
 pub mod serve;
 pub mod serveless;
-pub mod types;
 
 pub fn stdin_read_line(prompt: String) -> tokio::sync::oneshot::Receiver<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();

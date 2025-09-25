@@ -2,33 +2,21 @@
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use crate::types::PackedChat;
+use crate::ApiConfig;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "v_user_chat_with_id")]
+#[sea_orm(table_name = "global_api_config")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub updated_at: DateTimeWithTimeZone,
-    pub user_scraper: Uuid,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub username: Option<String>, // 存在无用户名的聊天, 用户没有设置即无用户名
     #[sea_orm(column_type = "JsonBinary")]
-    pub packed_chat: PackedChat,
-    pub chat_id: i64,
-    pub joined: bool,
+    pub api_config: ApiConfig,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::user_scraper::Entity",
-        from = "Column::UserScraper",
-        to = "super::user_scraper::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
+    #[sea_orm(has_many = "super::user_scraper::Entity")]
     UserScraper,
 }
 

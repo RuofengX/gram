@@ -1,4 +1,6 @@
+use crate::scraper::{HistoryConfig, Scraper};
 use anyhow::{Result, anyhow};
+use gram_type::entity::{peer_history, prelude::PeerHistory, user_chat};
 use sea_orm::{
     ActiveValue::{NotSet, Set},
     ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
@@ -6,11 +8,6 @@ use sea_orm::{
 };
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
-
-use crate::{
-    entity::{peer_history, prelude::PeerHistory, user_chat},
-    scraper::{HistoryConfig, Scraper},
-};
 
 /// 将数据库中的历史聊天记录向前、向后**连续**扩展  
 /// latest_chunk_size控制此次扩展向后延展的条目数量  

@@ -1,10 +1,10 @@
 use super::general::join_channel;
-use crate::entity::{esse_interest_channel, user_chat};
+use crate::scraper::Scraper;
 use crate::serveless::general::{now, quit_channel, resolve_username};
 use crate::serveless::history::expend_history;
-use crate::{entity::prelude::*, scraper::Scraper};
 use anyhow::Result;
 use anyhow::anyhow;
+use gram_type::entity::{esse_interest_channel, prelude::*, user_chat};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{IntoActiveModel, QueryOrder, TransactionTrait, prelude::*};
 use tracing::{debug, warn};

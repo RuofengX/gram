@@ -1,15 +1,12 @@
+use crate::scraper::{HistoryConfig, Login, Scraper};
 /// serve有状态服务的一部分
 use anyhow::{Result, anyhow};
 use dashmap::{DashMap, mapref::one::Ref};
+use gram_type::{ApiConfig, FrozenSession};
 use grammers_client::{grammers_tl_types as tl, types::LoginToken};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, warn};
 use uuid::Uuid;
-
-use crate::{
-    scraper::{HistoryConfig, Login, Scraper},
-    types::{ApiConfig, FrozenSession},
-};
 
 pub struct Executor {
     /// 静态配置

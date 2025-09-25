@@ -1,7 +1,6 @@
 use crate::{
     executor::Executor,
     scraper::{DownloadConfig, HistoryConfig},
-    types::{ChannelFull, FrozenSession, PackedChat, UserFull},
 };
 use anyhow::{anyhow, bail};
 use axum::{
@@ -13,6 +12,7 @@ use axum::{
     routing::{get, post},
 };
 use axum_streams::StreamBodyAs;
+use gram_type::{ChannelFull, FrozenSession, PackedChat, UserFull};
 use grammers_client::grammers_tl_types as tl;
 use serde::Deserialize;
 use std::{fmt::Display, sync::Arc};

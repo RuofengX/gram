@@ -4,14 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gram-core = { path = "../gram-core" }
+gram-core.path = "../gram-core"
+gram-type.path = "../gram-type"
+serde.workspace = true
+serde_json.workspace = true
+sea-orm.workspace = true
+tracing = { workspace = true, features = ["attributes"] }
 grammers-client = { workspace = true, features = [
     "parse_invite_link",
     "serde",
 ] }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
 serde_bytes = "0.11.17"
 anyhow = "1.0.98"
 axum = { version = "0.8.4", features = ["macros", "ws"] }
@@ -25,9 +27,7 @@ serde_repr_base64 = "0.1.0"
 axum-streams = { version = "0.23.1", features = ["json"] }
 tokio-stream = "0.1.17"
 futures-core = "0.3.31"
-sea-orm = { version = "1.1.15", features = ["runtime-tokio", "sqlx-postgres"] }
 dotenv = "0.15.0"
 chrono = "0.4.42"
-
 [dev-dependencies]
 serde_json = "1.0.143"

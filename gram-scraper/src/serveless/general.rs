@@ -1,11 +1,11 @@
-use crate::{
-    entity::{peer_full, prelude::*, user_chat},
-    scraper::Scraper,
-    types::{ApiConfig, FrozenSession, PackedChat},
-};
+use crate::scraper::Scraper;
 use anyhow::anyhow;
 use anyhow::{Result, bail};
 use chrono::{DateTime, Local};
+use gram_type::{
+    ApiConfig, FrozenSession, PackedChat,
+    entity::{peer_full, prelude::*, user_chat},
+};
 use sea_orm::{
     ActiveValue::{NotSet, Set},
     Condition, ConnectOptions, Database, IntoActiveModel, TransactionTrait,

@@ -1,3 +1,6 @@
+pub mod entity;
+
+use crate::entity::global_api_config;
 use anyhow::Result;
 use grammers_client::grammers_tl_types as tl;
 use sea_orm::FromJsonQueryResult;
@@ -8,8 +11,6 @@ use std::{
     path::Path,
 };
 use tracing::{info, trace};
-
-use crate::entity::global_api_config;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ApiConfig {

@@ -1,6 +1,6 @@
-use crate::types::{ApiConfig, ChannelFull, FrozenSession, PackedChat, UserFull};
 use anyhow::{Result, anyhow, bail};
 use bytes::Bytes;
+use gram_type::{ApiConfig, ChannelFull, FrozenSession, PackedChat, UserFull};
 use grammers_client::{
     Client, Config, InitParams,
     client::messages::MessageIter,

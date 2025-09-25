@@ -1,11 +1,9 @@
-use crate::{
-    entity::{prelude::*, user_scraper},
-    scraper::Scraper,
-    serveless::general::now,
-    stdin_read_line,
-    types::{ApiConfig, FrozenSession},
-};
+use crate::{scraper::Scraper, serveless::general::now, stdin_read_line};
 use anyhow::{Result, anyhow};
+use gram_type::{
+    ApiConfig, FrozenSession,
+    entity::{prelude::*, user_scraper},
+};
 use sea_orm::{
     ActiveValue::{NotSet, Set},
     IntoActiveModel, QueryOrder, TransactionTrait,
