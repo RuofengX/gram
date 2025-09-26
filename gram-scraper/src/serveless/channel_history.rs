@@ -1,12 +1,12 @@
 use super::general::join_channel;
 use crate::scraper::Scraper;
-use crate::serveless::general::{now, quit_channel, resolve_username};
+use crate::serveless::general::{now, resolve_username};
 use crate::serveless::history::expend_history;
 use anyhow::Result;
 use anyhow::anyhow;
 use gram_type::entity::{esse_interest_channel, prelude::*, user_chat};
 use sea_orm::ActiveValue::Set;
-use sea_orm::{IntoActiveModel, QueryOrder, TransactionTrait, prelude::*};
+use sea_orm::{IntoActiveModel, QueryOrder, TransactionTrait};
 use tracing::{debug, warn};
 
 /// 获取最久未更新的esse频道在user_chat表中的uuid
@@ -97,8 +97,9 @@ async fn sync_channel_history(
     }
     warn!("总计: 频道({}) - {}", chat.0.id, all);
 
-    debug!("quit channel");
-    quit_channel(db, scraper_id, scraper, user_chat.id).await?;
+    // FIXME: 临时关闭
+    // debug!("quit channel");
+    // quit_channel(db, scraper_id, scraper, user_chat.id).await?;
 
     return Ok(());
 }

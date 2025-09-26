@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 gram-core.path = "../gram-core"
+gram-type.path = "../gram-type"
+dotenv.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 teloxide = "0.17.0"
+regex = "1.11.2"

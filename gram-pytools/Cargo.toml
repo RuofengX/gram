@@ -11,7 +11,6 @@ crate-type = ["cdylib"]
 [dependencies]
 gram-core = { path = "../gram-core" }
 anyhow = { workspace = true }
-grammers-tl-types = { workspace = true, features = ["impl-serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 pyo3 = "0.26.0"

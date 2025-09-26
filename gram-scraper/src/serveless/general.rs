@@ -8,10 +8,9 @@ use gram_type::{
 };
 use sea_orm::{
     ActiveValue::{NotSet, Set},
-    Condition, ConnectOptions, Database, IntoActiveModel, TransactionTrait,
-    prelude::*,
+    Condition, IntoActiveModel, TransactionTrait,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 pub fn now() -> DateTimeWithTimeZone {
     let now_local: DateTime<Local> = Local::now();
@@ -25,24 +24,6 @@ pub async fn unfreeze_and<R>(
 ) -> Result<R> {
     let scraper = Scraper::unfreeze(frozen, api_config).await?;
     with(&scraper)
-}
-
-pub async fn connect_db() -> Result<DatabaseConnection> {
-    warn!("连接到数据库");
-    dotenv::dotenv().unwrap();
-    let url = dotenv::var("DATABASE_URL".to_owned())?;
-
-    let mut opt = ConnectOptions::new(url);
-
-    #[cfg(not(debug_assertions))]
-    // release: Disable SQLx log
-    opt.sqlx_logging(false);
-
-    #[cfg(debug_assertions)]
-    opt.sqlx_logging(true);
-
-    let db = Database::connect(opt).await?;
-    Ok(db)
 }
 
 /// 将用户名解析为packe_chat并存入数据库, 返回数据库条目的uuid
@@ -182,7 +163,7 @@ pub async fn full_info(
     db: &impl ConnectionTrait,
     scraper: &Scraper,
     user_chat: &user_chat::Model,
-) -> Result<Uuid> {
+) -> Result<Option<Uuid>> {
     debug!("fetch user{} full info", user_chat.user_id);
 
     let username = user_chat.username.clone();
@@ -202,12 +183,17 @@ pub async fn full_info(
         }
         .insert(db)
         .await?;
-        return Ok(ret.id);
+        return Ok(Some(ret.id));
     }
 
     // 对端为频道
     if chat.0.is_channel() {
         let full = scraper.fetch_channel_info(chat).await?;
+        if full.is_none() {
+            return Ok(None);
+        }
+        let full = full.unwrap();
+
         let ret = peer_full::ActiveModel {
             id: NotSet,
             updated_at: NotSet,
@@ -219,7 +205,7 @@ pub async fn full_info(
         }
         .insert(db)
         .await?;
-        return Ok(ret.id);
+        return Ok(Some(ret.id));
     }
 
     // 对端为其他东西

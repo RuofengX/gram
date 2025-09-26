@@ -7,7 +7,6 @@ use gram_type::{
 use sea_orm::{
     ActiveValue::{NotSet, Set},
     IntoActiveModel, QueryOrder, TransactionTrait,
-    prelude::*,
 };
 use tokio::sync::oneshot;
 use tracing::{debug, info, warn};

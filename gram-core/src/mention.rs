@@ -2,7 +2,7 @@ pub mod convert;
 
 use crate::{format::deserialize_msg, mention::convert::utf16_range_to_utf8};
 use anyhow::Result;
-use grammers_tl_types as tl;
+use grammers_client::grammers_tl_types as tl;
 use std::collections::HashSet;
 
 /// 输入json格式的tl::enums::Message  

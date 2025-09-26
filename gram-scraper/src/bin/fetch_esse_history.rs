@@ -12,7 +12,7 @@ include!("../../.config.rs");
 async fn main() -> Result<()> {
     gram_core::log::init_tracing();
 
-    let db = serveless::general::connect_db().await?;
+    let db = gram_type::entity::connect_db().await?;
 
     warn!("获取会话");
     let (scraper_id, scraper) = if let Some(ret) = serveless::scraper::resume_scraper(&db).await? {

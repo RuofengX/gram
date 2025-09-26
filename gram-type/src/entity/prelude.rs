@@ -10,3 +10,5 @@ pub use super::user_account::Entity as UserAccount;
 pub use super::user_chat::Entity as UserChat;
 pub use super::user_scraper::Entity as UserScraper;
 pub use super::v_user_chat_with_id::Entity as VUserChatWithId;
+pub use super::{NotSet, Set};
+pub use sea_orm::prelude::*;

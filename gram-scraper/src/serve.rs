@@ -333,7 +333,7 @@ async fn fetch_channel(
     State(s): State<AppState>,
     Path(session_id): Path<Uuid>,
     Json(channel): Json<PackedChat>,
-) -> Result<Json<ChannelFull>> {
+) -> Result<Json<Option<ChannelFull>>> {
     let ret = s
         .get_session(&session_id)?
         .value()

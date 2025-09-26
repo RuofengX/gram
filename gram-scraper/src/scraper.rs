@@ -143,9 +143,16 @@ impl Scraper {
     /// https://core.telegram.org/method/contacts.resolveUsername
     pub async fn resolve_username(&self, username: &str) -> Result<Option<PackedChat>> {
         debug!("resolve username {}", username);
-        let c = self.0.resolve_username(&username).await?;
-        // .ok_or(anyhow!("username not found"))?;
-        Ok(c.map(|x| x.pack().into()))
+        match self.0.resolve_username(&username).await {
+            Ok(c) => Ok(c.map(|x| x.pack().into())),
+            Err(e) => {
+                if e.is("USERNAME_INVALID") {
+                    Ok(None)
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
     }
 
     /// https://core.telegram.org/api/invites#public-usernames
@@ -228,7 +235,11 @@ impl Scraper {
         Ok(ret.into())
     }
 
-    pub async fn fetch_channel_info(&self, PackedChat(channel): PackedChat) -> Result<ChannelFull> {
+    /// 频道为私有则返回Ok(None)
+    pub async fn fetch_channel_info(
+        &self,
+        PackedChat(channel): PackedChat,
+    ) -> Result<Option<ChannelFull>> {
         if !channel.is_channel() {
             bail!("target chat not channel");
         }
@@ -239,14 +250,25 @@ impl Scraper {
             channel_id,
             access_hash,
         });
-        let ret = self
+        match self
             .0
             .invoke(&tl::functions::channels::GetFullChannel {
                 channel: input_user,
             })
-            .await?;
-        let tl::enums::messages::ChatFull::Full(ret) = ret;
-        Ok(ret.into())
+            .await
+        {
+            Ok(ret) => {
+                let tl::enums::messages::ChatFull::Full(ret) = ret;
+                Ok(Some(ret.into()))
+            },
+            Err(e) => {
+                if e.is("CHANNEL_PRIVATE"){
+                    Ok(None)
+                }else{
+                    Err(e.into())
+                }
+            }
+        }
     }
 
     pub async fn quit_chat(&self, PackedChat(chat): PackedChat) -> Result<()> {

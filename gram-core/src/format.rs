@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow};
-use grammers_tl_types as tl;
+use grammers_client::grammers_tl_types as tl;
 
 /// 将JSON格式的message转换为[`tl::enums::Message`]
 pub fn deserialize_msg(msg: &str) -> Result<tl::enums::Message> {

@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 gram-core.path = "../gram-core"
 gram-type.path = "../gram-type"
+dotenv.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -27,7 +28,6 @@ serde_repr_base64 = "0.1.0"
 axum-streams = { version = "0.23.1", features = ["json"] }
 tokio-stream = "0.1.17"
 futures-core = "0.3.31"
-dotenv = "0.15.0"
 chrono = "0.4.42"
 
 [dev-dependencies]

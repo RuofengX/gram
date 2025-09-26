@@ -29,12 +29,13 @@ pub async fn update_stale_esse_usename(
     loop {
         let stale_username = EsseUsernameFull::find()
             .order_by_asc(esse_username_full::Column::UpdatedAt)
-            // 筛选一天之前更新的用户，每天更新一次
             .filter(
-                Condition::all()
-                    .not()
-                    .add(esse_username_full::Column::IsValid.is_not_null())
-                    .add(esse_username_full::Column::IsValid.eq(Some(false))),
+                Condition::all().add(
+                    Condition::all()
+                        .not()
+                        .add(esse_username_full::Column::IsValid.is_not_null())
+                        .add(esse_username_full::Column::IsValid.eq(Some(false))),
+                ),
             )
             .one(db)
             .await?;
@@ -70,12 +71,12 @@ pub async fn update_stale_esse_usename(
         if let Some(chat) =
             resolve_username(db, scraper_id, scraper, &stale_username.username).await?
         {
-            info!("[{}]: 全量信息", stale_username.username);
+            warn!("[{}]: 全量信息", stale_username.username);
             // 获取全量信息
             let ret = full_info(db, scraper, &chat).await?;
             // 更新时间数值作为stale的参考, 让每次stale的结果都是最老的
             touch(db, stale_username).await?;
-            return Ok(Some(ret));
+            return Ok(ret);
         } else {
             warn!("[{}]: 未找到, 标记该条目", stale_username.username);
             let mut model = stale_username.into_active_model();
