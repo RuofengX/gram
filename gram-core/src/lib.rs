@@ -1,3 +1,3 @@
 pub mod format;
-pub mod mention;
 pub mod log;
+pub mod mention;

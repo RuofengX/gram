@@ -260,11 +260,11 @@ impl Scraper {
             Ok(ret) => {
                 let tl::enums::messages::ChatFull::Full(ret) = ret;
                 Ok(Some(ret.into()))
-            },
+            }
             Err(e) => {
-                if e.is("CHANNEL_PRIVATE"){
+                if e.is("CHANNEL_PRIVATE") {
                     Ok(None)
-                }else{
+                } else {
                     Err(e.into())
                 }
             }
