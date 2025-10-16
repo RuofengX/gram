@@ -1,10 +1,11 @@
 use anyhow::Result;
+use gram_scraper::db::fetch_session;
 use gram_scraper::{
     serveless::{self, channel_history::update_stale_esse_channel},
     signal_catch,
 };
 use tokio::sync::mpsc::error::TryRecvError;
-use tracing::{error, info, warn};
+use tracing::error;
 
 include!("../../.config.rs");
 
@@ -14,17 +15,8 @@ async fn main() -> Result<()> {
 
     let db = gram_type::entity::connect_db().await?;
 
-    warn!("获取会话");
-    let (scraper_id, scraper) = if let Some(ret) = serveless::scraper::resume_scraper(&db).await? {
-        ret
-    } else {
-        warn!("无可用会话，创建新会话");
-        let ret = serveless::scraper::create_scraper_from_stdin(&db).await?;
-        ret
-    };
-    warn!("会话UUID: {}", scraper_id);
+    let (scraper_id, scraper) = fetch_session(&db).await?;
 
-    info!("开始监听ctrl+c");
     let mut rx = signal_catch();
     loop {
         if !matches!(rx.try_recv(), Err(TryRecvError::Empty)) {

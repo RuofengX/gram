@@ -1,6 +1,6 @@
 use std::io::BufRead;
 
-use tracing::warn;
+use tracing::{info, warn};
 
 pub mod db;
 pub mod executor;
@@ -25,6 +25,7 @@ pub fn signal_catch() -> tokio::sync::mpsc::Receiver<()> {
     let (tx, rx) = tokio::sync::mpsc::channel::<()>(1);
 
     tokio::spawn(async move {
+        info!("开始监听ctrl+c");
         tokio::signal::ctrl_c()
             .await
             .expect("failed to listen for ctrlc");

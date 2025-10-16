@@ -21,19 +21,19 @@ pub async fn login_async(
     Ok(scraper.freeze())
 }
 
-pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uuid, Scraper)> {
+pub async fn create_scraper_from_stdin(conn: &impl ConnectionTrait) -> Result<(Uuid, Scraper)> {
     info!("从stdin输入验证码登录以创建爬虫会话");
 
     debug!("get global_api_config");
     let api_config = GlobalApiConfig::find()
-        .one(db)
+        .one(conn)
         .await?
         .ok_or(anyhow!("global_api_config not found"))?;
     let config_id = api_config.id;
 
     debug!("get user_account");
     let account = UserAccount::find()
-        .one(db)
+        .one(conn)
         .await?
         .ok_or(anyhow!("user_account not found"))?;
     let phone = account.phone.clone();
@@ -54,7 +54,7 @@ pub async fn create_scraper_from_stdin(db: &impl ConnectionTrait) -> Result<(Uui
         frozen_session: Set(frozen),
         in_use: Set(true),
     };
-    let id = scraper_model.insert(db).await?.id;
+    let id = scraper_model.insert(conn).await?.id;
 
     Ok((id, scraper))
 }

@@ -13,6 +13,5 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(bind).await.unwrap();
 
     warn!("server start at {}", bind);
-
     axum::serve(listener, app(executor)).await.unwrap();
 }
