@@ -84,7 +84,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: musllinux_1_2
-          working-directory: gram-pytools/dist
+          working-directory: gram-pytools
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -112,7 +112,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          working-directory: gram-pytools/dist
+          working-directory: gram-pytools
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -139,7 +139,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
-          working-directory: gram-pytools/dist
+          working-directory: gram-pytools
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -155,7 +155,7 @@ jobs:
         with:
           command: sdist
           args: --out dist
-          working-directory: gram-pytools/dist
+          working-directory: gram-pytools
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
