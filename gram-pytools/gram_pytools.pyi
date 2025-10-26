@@ -1,4 +1,7 @@
-def get_mentioned(msg: str) -> tuple[set[str], set[int]] | None:
+from typing import Optional
+
+
+def get_mentioned(msg: str) -> Optional[tuple[set[str], set[int]]]:
     """
     输入json字符串格式的tl::enums::Message
     
@@ -8,5 +11,17 @@ def get_mentioned(msg: str) -> tuple[set[str], set[int]] | None:
 
     返回两个列表, 分别包含用户名和用户ID
     其中, 用户名是不带@前缀的
+    """
+    ...
+
+
+def render_text(text: str, scale: float) -> bytes:
+    """
+    渲染文本为PNG格式字节串
+    调用者可使用`io.BytesIO`将返回值包装后使用`PIL.Image.open`打开
+
+    :param text: 待渲染文本
+    :param scale: 字体尺寸，推荐值为72
+    :return: PNG格式的字节串
     """
     ...

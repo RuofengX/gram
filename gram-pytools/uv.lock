@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.8"
 
 [[package]]
-name = "gram-tools"
+name = "gram-pytools"
 source = { editable = "." }
 dependencies = [
     { name = "maturin" },

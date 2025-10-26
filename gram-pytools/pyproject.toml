@@ -4,7 +4,6 @@ build-backend = "maturin"
 
 [project]
 name = "gram-pytools"
-version = "0.0.1"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
