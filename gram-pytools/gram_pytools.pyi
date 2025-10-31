@@ -1,12 +1,12 @@
-def extract_username(msg: str) -> tuple[set[str], set[int]]:
-    """
-    输入json字符串格式的tl::enums::Message
-    
-    函数分析其内容包含的所有用户名和用户ID进行提取,
-    如果有则提取用户名或用户ID
+from typing import Optional
 
-    返回两个列表, 分别包含用户名和用户ID
-    用户名是不带@前缀的
+
+def extract_username(message: str, entities: Optional[str]) -> tuple[set[str], set[int]]:
+    """
+    提取用户名
+    :param message: 消息文本内容, 原始内容
+    :param entities: 消息entities的JSON-Lines编码, 支持telethon直接导出
+    :return: 返回两个列表, 分别为用户名和用户ID, 用户名是不带@前缀的
     """
     ...
 

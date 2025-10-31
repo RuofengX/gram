@@ -7,7 +7,9 @@ use wildcard::Wildcard;
 const PATTERNS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:https?://)?[^\s/$.?#].\S*").unwrap());
 
-pub fn extract_usernames_json(text: &str) -> HashSet<String> {
+/// 输入一个字符串
+/// 提取其中的deeplink中的username
+pub fn extract_usernames(text: &str) -> HashSet<String> {
     PATTERNS
         .find_iter(text)
         .filter_map(|text| get_username(text.as_str()))
@@ -15,7 +17,7 @@ pub fn extract_usernames_json(text: &str) -> HashSet<String> {
 }
 
 pub fn get_username(link: &str) -> Option<String> {
-    let ret = tg_me_parse(link).or(tg_parse(link))?.username();
+    let ret = tg_me_preparse(link).or(tg_schema_preparse(link))?.username();
     Some(ret)
 }
 
@@ -41,7 +43,7 @@ impl DeepLink {
     }
 }
 
-fn tg_me_parse(url: &str) -> Option<DeepLink> {
+fn tg_me_preparse(url: &str) -> Option<DeepLink> {
     let mut patterns = vec![];
     for domain in ["t.me", "telegram.me", "telegram.dog"] {
         patterns.push(("https", format!("https://{domain}/*")));
@@ -63,7 +65,7 @@ fn tg_me_parse(url: &str) -> Option<DeepLink> {
         .next()
 }
 
-fn tg_parse(url: &str) -> Option<DeepLink> {
+fn tg_schema_preparse(url: &str) -> Option<DeepLink> {
     let url_no_schema = if url.starts_with("tg://") {
         &url[5..]
     } else if url.starts_with("tg:") {
@@ -123,6 +125,7 @@ fn is_username(text: &str) -> bool {
     .contains(&text))
         && text.len() != 1
         && !text.contains(' ')
+        && !text.starts_with('+')
 }
 
 #[cfg(test)]
@@ -134,7 +137,7 @@ mod tests {
     /// http://t.me/path?query
     /// https://t.me/path?query
     fn parse_tg_me() {
-        let url = tg_me_parse("t.me/path?query").unwrap();
+        let url = tg_me_preparse("t.me/path?query").unwrap();
         assert_eq!(
             url,
             DeepLink::TMe {
@@ -142,7 +145,7 @@ mod tests {
                 username: "path".to_owned()
             }
         );
-        let url = tg_me_parse("http://t.me/path?query").unwrap();
+        let url = tg_me_preparse("http://t.me/path?query").unwrap();
         assert_eq!(
             url,
             DeepLink::TMe {
@@ -150,7 +153,7 @@ mod tests {
                 username: "path".to_owned()
             }
         );
-        let url = tg_me_parse("https://t.me/my-user?query").unwrap();
+        let url = tg_me_preparse("https://t.me/my-user?query").unwrap();
         assert_eq!(
             url,
             DeepLink::TMe {
@@ -158,8 +161,8 @@ mod tests {
                 username: "my-user".to_owned()
             }
         );
-        assert!(tg_me_parse("https://thisisadomain.com").is_none());
-        assert!(tg_me_parse("https://thisisadomain.tg.me").is_none());
+        assert!(tg_me_preparse("https://thisisadomain.com").is_none());
+        assert!(tg_me_preparse("https://thisisadomain.tg.me").is_none());
     }
 
     #[test]
@@ -219,7 +222,7 @@ mod tests {
                 tg:resolve?domain=my-username5 \
                 ";
         assert_eq!(
-            extract_usernames_json(text),
+            extract_usernames(text),
             HashSet::from([
                 "my-username1".to_owned(),
                 "my-username2".to_owned(),

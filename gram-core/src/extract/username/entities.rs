@@ -5,7 +5,7 @@ use tl::enums::MessageEntity;
 
 pub fn extract_text_url(msg_entities: &[MessageEntity]) -> HashSet<String> {
     msg_entities
-        .into_iter()
+        .iter()
         .flat_map(|ent| match ent {
             MessageEntity::TextUrl(tl::types::MessageEntityTextUrl { url, .. }) => {
                 super::deeplink::get_username(url)
@@ -24,7 +24,7 @@ pub fn extract_text_url(msg_entities: &[MessageEntity]) -> HashSet<String> {
 ///
 /// 相关文档: https://core.telegram.org/api/entities
 pub fn extract_mentioned(
-    msg: String,
+    msg: &str,
     msg_entities: &[MessageEntity],
 ) -> Result<(HashSet<String>, HashSet<i64>)> {
     let mut user_ids = HashSet::new();
@@ -56,7 +56,7 @@ pub fn extract_mentioned(
             _ => None,
         })
         // 长度越界直接忽略
-        .flat_map(|(offset, length)| utf16_range_to_utf8(&msg, offset as usize, length as usize)) // 获取以utf8计算的字节长度
+        .flat_map(|(offset, length)| utf16_range_to_utf8(&msg, offset, length)) // 获取以utf8计算的字节长度
         .flat_map(|(start, end)| msg.get(start..end)) // 截取用户名部分
         .flat_map(|x| x.get(1..)) // 删除@键
         .map(|x| x.to_lowercase()) // 转换小写

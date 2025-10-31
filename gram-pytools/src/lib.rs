@@ -1,3 +1,4 @@
+use gram_core::format::convert_telethon_entities;
 use gram_core::render::font::FONTS;
 use gram_core::render::glyph::{Scale, VecGlyph};
 use image::{ImageBuffer, Luma};
@@ -16,8 +17,19 @@ fn gram_pytools(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[pyfunction]
-pub fn extract_username(msg: &str) -> PyResult<(HashSet<String>, HashSet<i64>)> {
-    gram_core::extract::username::extract_usernames_json(msg)
+/// 兼容telethon
+pub fn extract_username(
+    message: &str,
+    entities: Option<&str>,
+) -> PyResult<(HashSet<String>, HashSet<i64>)> {
+    let entities = if let Some(entities) = entities {
+        let ent =
+            convert_telethon_entities(entities).map_err(|e| AnyhowError::new_err(e.to_string()))?;
+        Some(ent)
+    } else {
+        None
+    };
+    gram_core::extract::username::extract_usernames(message, entities)
         .map_err(|e| AnyhowError::new_err(e.to_string()))
 }
 
