@@ -1,4 +1,4 @@
-use gram_core::format::convert_telethon_entities;
+use gram_core::format::{deserialize_telethon_entities, deserialize_telethon_entity};
 use gram_core::render::font::FONTS;
 use gram_core::render::glyph::{Scale, VecGlyph};
 use image::{ImageBuffer, Luma};
@@ -11,9 +11,20 @@ create_exception!(gram_tools, AnyhowError, pyo3::exceptions::PyException);
 /// A Python module implemented in Rust.
 #[pymodule]
 fn gram_pytools(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(extract_entity, m)?)?;
     m.add_function(wrap_pyfunction!(extract_username, m)?)?;
     m.add_function(wrap_pyfunction!(render_text, m)?)?;
     Ok(())
+}
+
+#[pyfunction]
+/// 兼容telethon
+pub fn extract_entity<'a>(message: &'a str, entity: &'a str) -> PyResult<Option<&'a str>> {
+    let ent =
+        deserialize_telethon_entity(entity).map_err(|e| AnyhowError::new_err(e.to_string()))?;
+    let ret = gram_core::extract::entity::extract_entity(message, &ent)
+        .map_err(|e| AnyhowError::new_err(e.to_string()))?;
+    Ok(ret)
 }
 
 #[pyfunction]
@@ -23,8 +34,8 @@ pub fn extract_username(
     entities: Option<&str>,
 ) -> PyResult<(HashSet<String>, HashSet<i64>)> {
     let entities = if let Some(entities) = entities {
-        let ent =
-            convert_telethon_entities(entities).map_err(|e| AnyhowError::new_err(e.to_string()))?;
+        let ent = deserialize_telethon_entities(entities)
+            .map_err(|e| AnyhowError::new_err(e.to_string()))?;
         Some(ent)
     } else {
         None

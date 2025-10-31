@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "gram-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "grammers-client",
@@ -1051,7 +1051,7 @@ dependencies = [
 
 [[package]]
 name = "gram-pytools"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "gram-core",
  "image",

@@ -3,11 +3,17 @@ use anyhow::Result;
 use grammers_client::grammers_tl_types as tl;
 use serde::{Deserialize, Serialize};
 
-/// 讲telethon的entities的json列表转换为grammers的entities
-pub fn convert_telethon_entities(entities: &str) -> Result<Vec<MessageEntity>> {
+/// 将telethon的entities的json列表转换为grammers的entities
+pub fn deserialize_telethon_entities(entities: &str) -> Result<Vec<MessageEntity>> {
     let entities: Vec<TelethonEntity> = serde_json::from_str(entities)?;
     let ret = entities.into_iter().map(|x| x.into()).collect();
     Ok(ret)
+}
+
+/// 将telethon的entity的json对象转换为grammers的entity
+pub fn deserialize_telethon_entity(entity: &str) -> Result<MessageEntity> {
+    let ret: TelethonEntity = serde_json::from_str(entity)?;
+    Ok(ret.into())
 }
 
 #[derive(Serialize, Deserialize)]

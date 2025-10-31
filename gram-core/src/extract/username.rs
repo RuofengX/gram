@@ -19,7 +19,7 @@ pub fn extract_usernames(
 
     // 调用entities搜索
     if let Some(entities) = entities {
-        let (mention_un, mention_uid) = entities::extract_mentioned(message, &entities)?;
+        let (mention_un, mention_uid) = super::entity::extract_mentioned_users(message, &entities)?;
         let text_url_un = entities::extract_text_url(&entities);
         usernames.extend(mention_un);
         usernames.extend(text_url_un);
