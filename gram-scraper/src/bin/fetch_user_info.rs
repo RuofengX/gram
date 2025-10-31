@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
             break;
         }
 
-        match serveless::username_full::update_stale_esse_usename(&db, scraper_id, &scraper).await {
+        match serveless::username_full::update_stale_esse_username(&db, scraper_id, &scraper).await {
             Ok(Some(id)) => {
                 debug!("fetch and insert username info to {}", id);
                 continue;

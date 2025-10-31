@@ -1,7 +1,6 @@
 use anyhow::Result;
-use chrono::TimeDelta;
-use sea_orm::{ActiveValue::Set, Condition, IntoActiveModel, QueryOrder, prelude::*};
-use tracing::{debug, info, warn};
+use sea_orm::{ActiveValue::Set, IntoActiveModel, QueryOrder, prelude::*};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -20,7 +19,7 @@ use gram_type::entity::{esse_username_full, peer_full, prelude::*};
 ///   * 返回user_full表记录id
 ///
 /// 如不存在, 返回Ok(None)
-pub async fn update_stale_esse_usename(
+pub async fn update_stale_esse_username(
     db: &impl ConnectionTrait,
     scraper_id: Uuid,
     scraper: &Scraper,
@@ -29,14 +28,7 @@ pub async fn update_stale_esse_usename(
     loop {
         let stale_username = EsseUsernameFull::find()
             .order_by_asc(esse_username_full::Column::UpdatedAt)
-            .filter(
-                Condition::all().add(
-                    Condition::all()
-                        .not()
-                        .add(esse_username_full::Column::IsValid.is_not_null())
-                        .add(esse_username_full::Column::IsValid.eq(Some(false))),
-                ),
-            )
+            .filter(esse_username_full::Column::IsValid.is_null())
             .one(db)
             .await?;
 
@@ -48,34 +40,20 @@ pub async fn update_stale_esse_usename(
 
         info!("[{}]: 开始", stale_username.username);
 
-        // 过滤一天内已经获取过的
-        // 初始数据大于一天前的时间点的
-        let history = PeerFull::find()
-            .filter(
-                Condition::all()
-                    .add(peer_full::Column::Username.eq(Some(stale_username.username.clone())))
-                    .add(peer_full::Column::UpdatedAt.gt(now() - TimeDelta::days(1))),
-            )
-            .count(db)
-            .await?;
-        debug!("history_count: {}", history);
-        if history > 0 {
-            // 一天内有解析过就返回None
-            info!("[{}]: 一天内已有解析记录, 跳过", stale_username.username);
-            touch(db, stale_username).await?;
-            continue;
-        }
-
         // 先解析用户名
         info!("[{}]: 解析用户名", stale_username.username);
         if let Some(chat) =
             resolve_username(db, scraper_id, scraper, &stale_username.username).await?
         {
-            warn!("[{}]: 全量信息", stale_username.username);
+            info!("[{}]: 解析全量信息", stale_username.username);
+            // 更新时间数值作为stale的参考, 让每次stale的结果都是最老的
+            touch(db, stale_username.clone()).await?;
+            // 标记已找到
+            let mut model = stale_username.into_active_model();
+            model.is_valid = Set(Some(true));
+            model.update(db).await?;
             // 获取全量信息
             let ret = full_info(db, scraper, &chat).await?;
-            // 更新时间数值作为stale的参考, 让每次stale的结果都是最老的
-            touch(db, stale_username).await?;
             return Ok(ret);
         } else {
             warn!("[{}]: 未找到, 标记该条目", stale_username.username);
