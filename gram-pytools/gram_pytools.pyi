@@ -21,6 +21,15 @@ def extract_username(message: str, entities: Optional[str]) -> tuple[set[str], s
     ...
 
 
+def extract_username_url(url: str) -> Optional[str]:
+    """
+    从URL中提取用户名
+    :param url: 一个URL, 类似`https://t.me/your_username`, 也支持`tg:`开头的URL
+    :return: 如成功获取, 返回用户名; 否则返回None
+    """
+    ...
+
+
 def render_text(text: str, scale: float) -> bytes:
     """
     渲染文本为PNG格式字节串

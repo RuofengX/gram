@@ -13,6 +13,7 @@ create_exception!(gram_tools, AnyhowError, pyo3::exceptions::PyException);
 fn gram_pytools(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_entity, m)?)?;
     m.add_function(wrap_pyfunction!(extract_username, m)?)?;
+    m.add_function(wrap_pyfunction!(extract_username_url, m)?)?;
     m.add_function(wrap_pyfunction!(render_text, m)?)?;
     Ok(())
 }
@@ -25,6 +26,11 @@ pub fn extract_entity<'a>(message: &'a str, entity: &'a str) -> PyResult<Option<
     let ret = gram_core::extract::entity::extract_entity(message, &ent)
         .map_err(|e| AnyhowError::new_err(e.to_string()))?;
     Ok(ret)
+}
+
+#[pyfunction]
+pub fn extract_username_url(url: &str) -> Option<String> {
+    gram_core::extract::username::deeplink::get_username(url)
 }
 
 #[pyfunction]
