@@ -1,7 +1,7 @@
-use crate::tl;
-use crate::tl::enums::MessageEntity;
 use anyhow::{Result, anyhow};
+use grammers_tl_types as tl;
 use std::collections::HashSet;
+use tl::enums::MessageEntity;
 
 pub fn extract_entity<'a>(msg: &'a str, msg_entity: &MessageEntity) -> Result<Option<&'a str>> {
     let result = match msg_entity {

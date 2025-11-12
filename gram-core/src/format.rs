@@ -1,4 +1,4 @@
-use crate::tl::enums::MessageEntity;
+use grammers_tl_types::enums::MessageEntity;
 use anyhow::Result;
 use grammers_client::grammers_tl_types as tl;
 use serde::{Deserialize, Serialize};
