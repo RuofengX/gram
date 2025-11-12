@@ -4,107 +4,107 @@ use std::sync::LazyLock;
 pub const FONTS: LazyLock<[Font; 59]> = LazyLock::new(|| {
     [
         // core noto fonts
-        Font::try_from_bytes(include_bytes!("../fonts/DejaVuSans.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansDisplay-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansSC-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSans-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansMath-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoEmoji-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/DejaVuSans.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansDisplay-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansSC-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSans-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansMath-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoEmoji-Regular.ttf")).unwrap(),
         // extra noto fonts
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansKR-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansArmenian-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansJP-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansAvestan-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansBengali-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansKR-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansArmenian-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansJP-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansAvestan-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansBengali-Regular.ttf")).unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansBengaliUI-Regular.ttf"
+            "../../fonts/NotoSansBengaliUI-Regular.ttf"
         ))
         .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansBrahmi-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansCarian-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansCherokee-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansCoptic-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansDeseret-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansBrahmi-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansCarian-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansCherokee-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansCoptic-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansDeseret-Regular.ttf")).unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansDevanagari-Regular.ttf"
-        ))
-        .unwrap(),
-        Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansDevanagariUI-Regular.ttf"
+            "../../fonts/NotoSansDevanagari-Regular.ttf"
         ))
         .unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansEgyptianHieroglyphs-Regular.ttf"
-        ))
-        .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansEthiopic-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansGeorgian-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansGlagolitic-Regular.ttf"
-        ))
-        .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansGujarati-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansGujaratiUI-Regular.ttf"
-        ))
-        .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansGurmukhi-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansHebrew-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansImperialAramaic-Regular.ttf"
-        ))
-        .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansKayahLi-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansKaithi-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansKannada-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansKannadaUI-Regular.ttf"
+            "../../fonts/NotoSansDevanagariUI-Regular.ttf"
         ))
         .unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansKharoshthi-Regular.ttf"
+            "../../fonts/NotoSansEgyptianHieroglyphs-Regular.ttf"
         ))
         .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansKhmer-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansKhmerUI-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansLao-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansLaoUI-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansLycian-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansLydian-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansEthiopic-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansGeorgian-Regular.ttf")).unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansMalayalam-Regular.ttf"
+            "../../fonts/NotoSansGlagolitic-Regular.ttf"
+        ))
+        .unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansGujarati-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!(
+            "../../fonts/NotoSansGujaratiUI-Regular.ttf"
+        ))
+        .unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansGurmukhi-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansHebrew-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!(
+            "../../fonts/NotoSansImperialAramaic-Regular.ttf"
+        ))
+        .unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansKayahLi-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansKaithi-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansKannada-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!(
+            "../../fonts/NotoSansKannadaUI-Regular.ttf"
         ))
         .unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansMalayalamUI-Regular.ttf"
+            "../../fonts/NotoSansKharoshthi-Regular.ttf"
         ))
         .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansMono-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansNKo-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansKhmer-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansKhmerUI-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansLao-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansLaoUI-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansLycian-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansLydian-Regular.ttf")).unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansOldSouthArabian-Regular.ttf"
+            "../../fonts/NotoSansMalayalam-Regular.ttf"
         ))
         .unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansOldTurkic-Regular.ttf"
+            "../../fonts/NotoSansMalayalamUI-Regular.ttf"
         ))
         .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansOsmanya-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansMono-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansNKo-Regular.ttf")).unwrap(),
         Font::try_from_bytes(include_bytes!(
-            "../noto-fonts/NotoSansPhoenician-Regular.ttf"
+            "../../fonts/NotoSansOldSouthArabian-Regular.ttf"
         ))
         .unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansShavian-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansSinhala-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansSymbols-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansTamil-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansTamilUI-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansTelugu-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansTeluguUI-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansThaana-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansThai-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansThaiUI-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansUgaritic-Regular.ttf")).unwrap(),
-        Font::try_from_bytes(include_bytes!("../noto-fonts/NotoSansVai-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!(
+            "../../fonts/NotoSansOldTurkic-Regular.ttf"
+        ))
+        .unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansOsmanya-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!(
+            "../../fonts/NotoSansPhoenician-Regular.ttf"
+        ))
+        .unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansShavian-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansSinhala-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansSymbols-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansTamil-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansTamilUI-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansTelugu-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansTeluguUI-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansThaana-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansThai-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansThaiUI-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansUgaritic-Regular.ttf")).unwrap(),
+        Font::try_from_bytes(include_bytes!("../../fonts/NotoSansVai-Regular.ttf")).unwrap(),
     ]
 });
